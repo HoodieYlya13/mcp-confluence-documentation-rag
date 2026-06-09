@@ -1,0 +1,74 @@
+<!--
+{
+  "doc_id": "sps_beam_instrumentation",
+  "space": "SPS-BI",
+  "allowed_roles": ["ATS_CORE_LEAD"],
+  "last_modified": "2026-06-08T12:30:00Z"
+}
+-->
+<div class="wiki-content">
+  <ac:structured-macro ac:name="warning">
+    <ac:parameter ac:name="title">RESTRICTED ENGINEERING DATA</ac:parameter>
+    <ac:rich-text-body>
+      <p><strong>ACCESS RESTRICTION:</strong> This document contains highly restricted hardware register addresses and VME crate configurations for the Super Proton Synchrotron (SPS) Beam Instrumentation (BI) systems. Access is restricted to ATS Core Lead personnel.</p>
+    </ac:rich-text-body>
+  </ac:structured-macro>
+
+  <h1>SPS Beam Instrumentation VME Crate &amp; Register Configurations</h1>
+  <p>The SPS beam position monitoring (BPM) system relies on legacy VMEbus hardware located in BA3, BA4, and BA5. These systems capture orbit data at a sampling frequency of 40 MHz and must be configured via the primary timing registers.</p>
+
+  <h2>1. VME Crate Memory Maps</h2>
+  <p>The direct physical memory addresses for the beam loss monitors (BLM) and beam position monitors (BPM) controllers are specified below.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Crate ID</th>
+        <th>System Type</th>
+        <th>Base Register Address</th>
+        <th>Interrupt Level</th>
+        <th>DMA Channel</th>
+        <th>Max Calibration Error</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>VME_SPS_BA3_BPM</td>
+        <td>BPM Orbit Controller</td>
+        <td>0xFC000000</td>
+        <td>5</td>
+        <td>1</td>
+        <td>0.02 mm</td>
+      </tr>
+      <tr>
+        <td>VME_SPS_BA4_BLM</td>
+        <td>Beam Loss Integrator</td>
+        <td>0xFD100000</td>
+        <td>4</td>
+        <td>2</td>
+        <td>0.05 Gy/s</td>
+      </tr>
+      <tr>
+        <td>VME_SPS_BA5_BCT</td>
+        <td>Beam Current Transformer</td>
+        <td>0xFE200000</td>
+        <td>6</td>
+        <td>0</td>
+        <td>0.1% intensity</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>2. Hardware Calibration Procedure</h2>
+  <ol>
+    <li>Initiate hardware reset using command word <code>0x00FF</code> written directly to base + 0x08.</li>
+    <li>Wait 200 ms for FPGA clock phase lock loops (PLL) to stabilize.</li>
+    <li>Check register <code>0x00A4</code> for the lock bit (bit 12). If zero, calibration failed.</li>
+  </ol>
+
+  <ac:structured-macro ac:name="note">
+    <ac:rich-text-body>
+      <p>Performing calibration while beam is present will cause a false Beam Loss monitor trigger, resulting in an immediate beam abort. Calibration must only be run during dedicated machine development (MD) sessions.</p>
+    </ac:rich-text-body>
+  </ac:structured-macro>
+</div>

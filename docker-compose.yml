@@ -1,0 +1,27 @@
+services:
+  # Service to execute the offline evaluation harness
+  eval-suite:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mcp-confluence-documentation-rag:latest
+    command: python -m src.eval_suite
+
+  # Service to run the interactive agent loop demo
+  agent-loop:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mcp-confluence-documentation-rag:latest
+    command: python -m src.agent_loop
+    stdin_open: true
+    tty: true
+
+  # Service to spin up the official FastMCP Server
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mcp-confluence-documentation-rag:latest
+    command: python -m src.server
+    stdin_open: true

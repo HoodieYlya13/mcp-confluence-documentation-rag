@@ -1,0 +1,70 @@
+<!--
+{
+  "doc_id": "linac4_injection_sop",
+  "space": "LINAC4",
+  "allowed_roles": ["JUNIOR_OP", "ATS_CORE_LEAD"],
+  "last_modified": "2026-06-08T12:15:00Z"
+}
+-->
+<div class="wiki-content">
+  <ac:structured-macro ac:name="note">
+    <ac:parameter ac:name="title">Standard Operating Procedure</ac:parameter>
+    <ac:rich-text-body>
+      <p>This is the standard procedure for managing the injection sequence of H- ion beams from Linac4 into the Proton Synchrotron Booster (PSB).</p>
+    </ac:rich-text-body>
+  </ac:structured-macro>
+
+  <h1>Linac4 H- Ion Beam Injection Sequence SOP</h1>
+  <p>Linac4 accelerates H- ions to an energy of 160 MeV. The injection into the PSB uses a charge-exchange system with a carbon stripping foil to convert H- ions to protons (H+).</p>
+
+  <h2>1. Beam Sequence States</h2>
+  <p>The sequence must proceed through the following operational phases:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Phase</th>
+        <th>State Name</th>
+        <th>Target Intensity (charges)</th>
+        <th>RF Cavity Phase (deg)</th>
+        <th>Interlock Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td>BEAM_OFF</td>
+        <td>0.0</td>
+        <td>0.0</td>
+        <td>ARMD</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td>PILOT_BEAM</td>
+        <td>5.0e11</td>
+        <td>-45.2</td>
+        <td>ARMD</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td>PRODUCTION_BEAM</td>
+        <td>2.5e12</td>
+        <td>-12.8</td>
+        <td>ACTIVE</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>2. Stripping Foil Verification Checklist</h2>
+  <ul>
+    <li>Verify the stripping foil position using the BTV (Beam Television) monitor.</li>
+    <li>Check the stripping foil temperature. If it exceeds 1800K, command the foil changer to switch to a spare foil position.</li>
+    <li>Ensure the current in the bumper magnets matches the injection orbit offsets within &plusmn;0.5 mm.</li>
+  </ul>
+
+  <ac:structured-macro ac:name="info">
+    <ac:rich-text-body>
+      <p>The stripping foil has a finite lifetime. Track the cumulative integrated charge on the active foil (position 4) and flag when it reaches 1.0e20 protons.</p>
+    </ac:rich-text-body>
+  </ac:structured-macro>
+</div>

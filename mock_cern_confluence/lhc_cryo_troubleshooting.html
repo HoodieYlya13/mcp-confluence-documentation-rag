@@ -1,0 +1,70 @@
+<!--
+{
+  "doc_id": "lhc_cryo_troubleshooting",
+  "space": "LHC-CRYO",
+  "allowed_roles": ["JUNIOR_OP", "ATS_CORE_LEAD"],
+  "last_modified": "2026-06-08T12:00:00Z"
+}
+-->
+<div class="wiki-content">
+  <ac:structured-macro ac:name="info">
+    <ac:parameter ac:name="title">Operational Notice: LHC Sector 3-4 Cryogenic Interlock</ac:parameter>
+    <ac:rich-text-body>
+      <p>This document details the troubleshooting procedure for the LHC Sector 3-4 vacuum insulation and cryogenic interlocks. Any modification to these thresholds requires a formal approval from the BE-ICS group leader.</p>
+    </ac:rich-text-body>
+  </ac:structured-macro>
+
+  <h1>LHC Cryo-Vacuum Troubleshooting &amp; Interlock Thresholds</h1>
+  <p>During beam operation, stability of the sub-2K helium bath is critical. Vacuum degradations in the insulating vacuum barrier can cause sudden heat load rises, triggering the cryogenic interlocks.</p>
+
+  <h2>1. Vacuum Sensor Thresholds</h2>
+  <p>The table below outlines the critical pressure thresholds for the vacuum monitoring system in LHC Sector 3-4.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Sensor ID</th>
+        <th>Location</th>
+        <th>Warning Threshold (mbar)</th>
+        <th>Interlock Trip (mbar)</th>
+        <th>Action Required on Warning</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>VGPB_34_Q1</td>
+        <td>Sector 3-4 Q1 Quadrupole</td>
+        <td>1.2e-5</td>
+        <td>5.0e-5</td>
+        <td>Initiate pumping group override, monitor PT-100 temps</td>
+      </tr>
+      <tr>
+        <td>VGPB_34_Q2</td>
+        <td>Sector 3-4 Q2 Quadrupole</td>
+        <td>1.2e-5</td>
+        <td>5.0e-5</td>
+        <td>Initiate pumping group override, monitor PT-100 temps</td>
+      </tr>
+      <tr>
+        <td>VGPB_34_D1</td>
+        <td>Sector 3-4 D1 Dipole</td>
+        <td>1.5e-5</td>
+        <td>8.0e-5</td>
+        <td>Standby for beam dump, isolate sector valves</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>2. Recovery and Troubleshooting Sequence</h2>
+  <ol>
+    <li>If <strong>Warning Threshold</strong> is breached, check the beam screen heater status via the cryogenic SCADA system.</li>
+    <li>Execute standard venting validation protocol if a thermal cycle is required.</li>
+    <li>If <strong>Interlock Trip</strong> is reached, the beam will dump automatically via the Beam Interlock System (BIS). Verify that energy extraction switches opened successfully.</li>
+  </ol>
+
+  <ac:structured-macro ac:name="warning">
+    <ac:rich-text-body>
+      <p><strong>CRITICAL SAFETY WARNING:</strong> Never bypass the BIS input signals for cryo-vacuum. Doing so disables magnet quench protection and may result in catastrophic damage to the superconducting coils.</p>
+    </ac:rich-text-body>
+  </ac:structured-macro>
+</div>

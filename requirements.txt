@@ -1,0 +1,4 @@
+beautifulsoup4==4.12.3
+markdownify==0.13.1
+mcp==1.2.1
+numpy==2.2.3

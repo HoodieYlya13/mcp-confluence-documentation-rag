@@ -1,0 +1,36 @@
+[project]
+name = "mcp-confluence-documentation-rag"
+version = "1.0.0"
+description = "RBAC-secured Confluence RAG pipeline exposed over the Model Context Protocol (MCP) for CERN ATS operational documentation."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "beautifulsoup4==4.12.3",
+    "markdownify==0.13.1",
+    "mcp==1.2.1",
+    "numpy==2.2.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.3.4",
+    "ruff==0.9.6",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q --strict-markers"
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = [
+    "UP006", # Keep typing.List/Dict for broad Python version readability
+    "UP035",
+]
