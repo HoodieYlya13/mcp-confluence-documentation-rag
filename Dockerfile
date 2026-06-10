@@ -35,7 +35,9 @@ ENV HF_HOME=/home/cern-op/.cache/huggingface
 
 USER cern-op
 
-RUN python -c "from llama_index.embeddings.huggingface import HuggingFaceEmbedding; \
+RUN --mount=type=secret,id=HF_TOKEN,mode=0444,required=false \
+    HF_TOKEN=$(cat /run/secrets/HF_TOKEN 2>/dev/null || echo "") \
+    python -c "from llama_index.embeddings.huggingface import HuggingFaceEmbedding; \
     HuggingFaceEmbedding(model_name='sentence-transformers/all-MiniLM-L6-v2')"
 
 ENV MCP_TRANSPORT=streamable-http
