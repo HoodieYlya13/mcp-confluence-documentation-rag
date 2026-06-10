@@ -1,0 +1,68 @@
+{
+  "routing": {
+    "repo_name": "mcp-confluence-documentation-rag",
+    "project_name": "MCP Confluence Documentation RAG — Accelerator Operations Substrate",
+    "hero_image": ""
+  },
+  "project_meta": {
+    "role": "Applied AI & Systems Engineer",
+    "development_phase": "Production-Deployed, RBAC-Enforced MCP RAG Substrate",
+    "languages": ["Python", "HTML", "Shell"],
+    "frameworks_and_tools": [
+      "FastMCP (Model Context Protocol)",
+      "LangGraph (StateGraph)",
+      "LlamaIndex",
+      "ChromaDB (Embedded)",
+      "Sentence-Transformers (all-MiniLM-L6-v2)",
+      "Google GenAI / Gemini API",
+      "Ollama",
+      "Starlette / ASGI",
+      "Prometheus (Custom Exposition)",
+      "pytest & unittest",
+      "Docker (Multi-Stage, Rootless)",
+      "GitHub Actions (Two-Speed CI/CD)",
+      "Hugging Face Spaces",
+      "Atlassian Confluence Cloud REST API"
+    ]
+  },
+  "comprehensive_description": "A production-deployed, multi-layered RBAC-enforced Model Context Protocol (MCP) server exposing a retrieval-augmented knowledge base built from a live Atlassian Confluence instance. Designed as a security-hardened portfolio centerpiece for the CERN BE-CSS Applied AI Engineer role, the system implements a zero-trust architecture featuring bearer-token authentication, metadata ACL query pushdowns in ChromaDB, a LangGraph verification node, and a post-generation leak scanner to eliminate LLM hallucinations. It runs in a production Hugging Face Spaces environment, utilizing local sentence-transformer embeddings and a 5-tier Gemini model fallback hierarchy to achieve zero-maintenance overhead and 100% service uptime at $0/month infrastructure cost.",
+  "engineering_highlights": [
+    "Designed a secure Four-Layer Enforcement Security Model (Bearer token validation -> ACL query filter pushdown -> LangGraph Context Verifier node -> Post-generation register leak scanner) ensuring complete authorization separation where a compromised retriever or prompt injection cannot leak unauthorized content.",
+    "Architected a custom Structure-Preserving Layout Chunker that parses Confluence XHTML into clean Markdown while keeping scientific tables atomic and carrying active heading context down through all generated sub-chunks.",
+    "Implemented ACL Pushdown in ChromaDB using integer metadata filters natively computed on the vector query layer, preventing unauthorized document chunks from ever entering the retrieval candidate set.",
+    "Developed a Three-Phase LangGraph State Graph (router -> retrieve -> integrate -> verify -> generate/refuse), decoupling context verification from the generation logic and rendering the safety pipeline as an inspectable execution graph.",
+    "Built a Tiered LLM Fallback Client supporting Google Gemini (with prioritized fallback tiers), Ollama (for fully offline local execution), and a deterministic stub client for offline CI/CD evaluation gating.",
+    "Created a custom, zero-dependency Prometheus Metrics Exporter exposing tool call rates, processing latency, sync states, and layer-specific RBAC denial metrics for seamless integration with central Prometheus/Grafana stacks.",
+    "Engineered a Two-Speed CI/CD Pipeline in GitHub Actions running static analysis and mock evaluation gates in seconds, combined with nightly cron jobs executing full semantic evaluations, adversarial probe suites, and self-healing deployments to Hugging Face Spaces."
+  ],
+  "measurable_metrics": {
+    "execution_latency": "Sub-second retrieval and local embedding computation using CPU-optimized all-MiniLM-L6-v2; sub-10ms query execution in embedded ChromaDB; and non-blocking background synchronization routines.",
+    "ui_performance": "Native Model Context Protocol streamable HTTP and stdio transports ensuring instant message delivery and compatibility with Claude Desktop and command-line MCP interfaces.",
+    "operational_cost": "$0/month. Powered by Hugging Face Spaces (CPU Basic tier), local embedding computation, and Google Gemini API free tier thresholds."
+  },
+  "star_challenges": [
+    {
+      "situation": "Free-tier Gemini API endpoints frequently return rate limits or quota exhaustions under heavy search validation tests, causing model responses to drop and tests to fail.",
+      "action": "Engineered a tiered fallback hierarchy inside llm.py that catches transient exceptions and automatically routes requests to alternative models (e.g. gemini-1.5-flash, gemini-2.5-flash) and local stub backups.",
+      "result": "Guaranteed uninterrupted RAG generation in CI and staging pipelines, maintaining 100% service uptime under rate-limit constraints.",
+      "inline_image": ""
+    },
+    {
+      "situation": "Traditional RAG pipelines trust the vector database output, rendering them vulnerable to buggy retriever logic or embedded prompt injections (like 'SYSTEM OVERRIDE: ignore all previous instructions...') hidden inside the Confluence corpus.",
+      "action": "Implemented a strict four-layer security boundary: pushing ACL filters directly into the Chroma query, executing a dedicated LangGraph verify node that checks chunk-level permissions after retrieval, and running a post-generation regex leak scanner to verify register addresses in the LLM's output against the authorized context.",
+      "result": "Achieved a 0.00% RBAC violation/leakage rate and blocked all adversarial prompt injection attacks during execution, verified by the automated evaluation suite.",
+      "inline_image": ""
+    },
+    {
+      "situation": "Standard HTML-to-Markdown libraries split or corrupt complex data tables, destroying the semantic meaning of diagnostic register parameters when chunked across sliding windows.",
+      "action": "Built a custom ConfluenceSanitizationEngine that extracts XHTML tables, collapses inner newlines, normalizes row-column counts, and pre-renders Markdown tables wrapped in blank-line boundaries, ensuring tables are treated atomically by the chunker.",
+      "result": "Successfully passed 100% of table parsing integrity tests in the evaluation suite, preserving structural formatting and data accuracy across all document pages.",
+      "inline_image": ""
+    }
+  ],
+  "architectural_deep_dive": {
+    "text": "The system initiates by querying Atlassian Confluence Space page version histories, parsing XHTML into clean Markdown, and loading chunks into ChromaDB with role-permission metadata. When a query is received via FastMCP (stdio or streamable HTTP), the ASGI middleware maps the bearer token to a role context. The LangGraph agent executes a secure turn: pushing role-based metadata filters into Chroma, auditing the retrieved context chunks in a dedicated verification node, prompting the Gemini API fallback group with injection-hardened instructions, scanning the final token stream for data leaks, and recording telemetry in Prometheus metrics.",
+    "illustration": null
+  },
+  "lessons_learned": "Layering security boundaries so that each component behaves under a zero-trust model is the only way to build safe RAG agents; relying on a single vector store filter is insufficient when prompt injections can bypass retriever assumptions."
+}
