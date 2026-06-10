@@ -30,14 +30,17 @@ class ConfluenceSanitizationEngine:
             raw_content = f.read()
 
         metadata = self._extract_metadata(raw_content)
-        doc_id = metadata.get("doc_id", "")
+        return self.parse_content(raw_content, metadata)
+
+    def parse_content(self, raw_content: str, metadata: Dict[str, Any]) -> ParsedDocument:
+        doc_id = str(metadata.get("doc_id", ""))
         space = metadata.get("space", "")
         allowed_roles = metadata.get("allowed_roles", [])
         last_modified = metadata.get("last_modified", "")
 
         if not doc_id or not space or not allowed_roles:
             self.logger.error("Missing critical metadata headers", extra={"metadata": metadata})
-            raise ValueError(f"File {file_path} is missing required metadata fields.")
+            raise ValueError(f"Document '{doc_id or 'unknown'}' is missing required metadata fields.")
 
         soup = BeautifulSoup(raw_content, "html.parser")
         self._sanitize_macros(soup)

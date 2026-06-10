@@ -25,16 +25,36 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
-      - name: Install dependencies
+      - name: Install dependencies (fast path, no embedding stack)
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
 
       - name: Lint with ruff
-        run: ruff check src tests
+        run: ruff check src tests scripts
 
-      - name: Run unit & security tests
-        run: pytest
+      - name: Run unit & security tests (semantic tests deferred to nightly)
+        run: pytest -m "not semantic"
 
       - name: Run offline RAG evaluation harness
+        env:
+          DOCUMENT_SOURCE: local
+          RETRIEVER_BACKEND: tfidf
+          LLM_BACKEND: stub
         run: python -m src.eval_suite
+
+  security-scan:
+    name: Dependency & secret scan (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true

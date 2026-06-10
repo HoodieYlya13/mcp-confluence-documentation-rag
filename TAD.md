@@ -227,32 +227,151 @@ Two stages: `builder` installs Python dependencies into `/root/.local` (pip's `-
 
 ---
 
-## 6. Extension Points
+## 6. Extension Points (PoC era — all delivered in v2)
 
-### Connecting to the Real Confluence API
+Sections 1–5 describe the original offline proof-of-concept. Every extension point listed in earlier revisions of this document has since been implemented; Part II below documents the production system and its decisions. The PoC components (mock files, TF-IDF store, stub LLM) survive as the deterministic fast path used by per-push CI.
 
-The mock data layer is isolated to `mock_cern_confluence/` and `initialize_substrate()` in `server.py`. To connect to a real Confluence instance:
+---
 
-1. Replace `initialize_substrate()` with a `ConfluenceAPISource` that calls:
-   ```
-   GET /rest/api/content?expand=body.storage,restrictions&spaceKey=...
-   ```
-   and maps `restrictions.read.restrictions.group` to `allowed_roles`.
+# Part II — Production Architecture (v2)
 
-2. Pass the fetched `body.storage.value` (XHTML) directly to `ConfluenceSanitizationEngine.parse_file()` — the parser is already designed to consume raw Confluence storage-format XHTML.
+## 7. Production Data & Execution Flow
 
-3. **Remove `user_role` from all MCP tool signatures.** In production, derive it server-side from CERN SSO / OIDC claims on the authenticated request. The retrieval and generation RBAC layers require no changes; only the identity source changes.
-
-### Connecting to a Real LLM
-
-`_generate_response()` in `agent_loop.py` is the mock generation layer. Replace it with a call to any LLM API (Anthropic, OpenAI, local Ollama) that receives `system_prompt` (constructed in Phase 2) as the system message and `query` as the user message. Phase 3 (Verifier) runs before the LLM call and does not change.
-
-### Remote MCP Deployment
-
-The server currently uses stdio transport (designed for local subprocess communication). FastMCP supports HTTP/SSE transport for remote deployment:
-
-```python
-mcp.run(transport="sse", host="0.0.0.0", port=8000)
+```
+Atlassian Confluence Cloud (space ATSOPS, ACL labels per page)
+    │
+    ▼ ConfluenceAPISource.fetch_documents()             [sources.py]
+      pagination · retries/backoff · fail-closed ACL · version-diff cache
+ParsedDocument[]  (doc_id = Confluence page id, title in metadata)
+    │
+    ▼ SemanticVectorIndex.add_documents()               [retrieval.py]
+      StructureAwareChunker → TextNodes → all-MiniLM-L6-v2 → ChromaDB
+    │
+    ▼ initialize_substrate()  [startup + daily scheduler + /admin/sync]
+    │
+    ├─ MCP tools (identity from bearer token, never from client input)
+    │     list_available_pages() · fetch_and_sanitize_page(page_id)
+    │     semantic_search_accelerator(query, top_k)
+    │
+    ▼ LangGraph StateGraph                              [agent_loop.py]
+      router → retrieve → integrate → verify ⇒ generate | refuse
+                                        │
+                                        ▼ Gemini (tiered) / Ollama / stub
+                              post-generation leak scan (Layer 3)
 ```
 
-This is the only change needed to the server for remote deployment. The role derivation from SSO/OIDC (see above) becomes mandatory at this point.
+Live deployment: Hugging Face Docker Space, MCP streamable HTTP at `/mcp`, public `/health` and `/metrics`, lead-only `POST /admin/sync`.
+
+## 8. Configuration (`settings.py`)
+
+**pydantic-settings with `.env` file + environment override.** All knobs (source, retriever backend, LLM backend, transport, tokens) resolve through one `Settings` class. Real env vars take precedence over `.env`, which is how `tests/conftest.py` pins the hermetic test profile (`local` source, `tfidf` retriever, `stub` LLM, empty `STDIO_ROLE`) regardless of the developer's live `.env`. `get_settings()` is `lru_cache`d: one consistent snapshot per process.
+
+## 9. Secure Confluence Connector (`sources.py`)
+
+**`DocumentSource` protocol** with `ConfluenceAPISource` (production) and `LocalFileSource` (CI / air-gapped). The server chooses by config; nothing downstream knows the difference.
+
+**ACL via page labels, not page restrictions.** Confluence Cloud Free does not support page restrictions (Standard-plan feature). ACLs are therefore encoded as labels (`acl-junior-op`, `acl-ats-core-lead`) and mapped to roles through a config dictionary. The production swap at CERN replaces the label reader with `expand=restrictions.read.restrictions` + SSO group mapping — the adapter seam is identical. The label→role map lives in `Settings`, not code.
+
+**Fail closed.** A page with no recognized ACL label is skipped and logged as a security event — never indexed. This was validated in production by accident: Confluence auto-creates a space homepage with no labels, and the connector correctly excluded it (`pages_skipped_no_acl: 1` in every live sync report).
+
+**Incremental sync.** The connector caches `(version.number, ParsedDocument)` per page id and re-parses only pages whose version changed. The live sync report (`pages_checked / changed / unchanged / skipped_no_acl / parse_errors`) is structured-logged and returned by `/admin/sync`.
+
+**Resilience.** Exponential-backoff retries (3 attempts) on transport errors and 5xx; 4xx fails immediately (auth/config problems are not transient). If the source is unreachable at sync time, the server keeps serving the last-known-good index.
+
+## 10. Semantic Retrieval (`retrieval.py`)
+
+**Framework strategy: LlamaIndex for plumbing, custom for security.** LlamaIndex provides `TextNode`, `VectorStoreIndex`, `HuggingFaceEmbedding` and the Chroma binding; the chunker and the ACL model are custom because no framework ships layered RBAC.
+
+**Structure-Preserving Layout Chunking.** The chunker splits Markdown into heading / table / paragraph blocks, packs blocks into chunks under a word budget, and enforces two invariants: a table block is never split (scientific tables lose meaning when cut), and the active heading is prepended to every chunk it governs (a continuation chunk still knows it belongs to "## Vacuum Sensor Thresholds"). Each chunk carries a defensive copy of the document ACL.
+
+**ChromaDB embedded, ACL pushed into the query.** Role authorization is stored as integer metadata flags (`role_junior_op: 1`) and enforced with a LlamaIndex `MetadataFilter` inside the vector query — filter-at-source rather than post-filtering. Integers, not booleans: `MetadataFilter` validates `value` as `int | float | str | list`, rejecting `bool`. A belt-and-braces post-check re-verifies every returned chunk and logs CRITICAL if the pushdown ever fails.
+
+**Local embeddings (`all-MiniLM-L6-v2`).** 80 MB, CPU-friendly, no embedding API: $0 and the air-gapped story stays intact. The model is baked into the Docker image at build time so cold starts never download it.
+
+**Re-sync semantics.** `add_documents` deletes all chunks of current and stale doc ids, then inserts fresh nodes — idempotent upsert plus garbage collection of pages deleted in Confluence.
+
+**TF-IDF retained.** The NumPy store remains behind the same interface as the CI-fast backend: zero model download, deterministic scores, sub-second test suite.
+
+## 11. LLM Layer (`llm.py`)
+
+**`LLMClient` protocol, three implementations.** `GeminiClient` (default, free tier) walks a configurable model-tier list and falls through on quota/error — the same pattern proven in the YlyaBot project. `OllamaClient` is the air-gapped switch (one env var, same pipeline). `StubLLMClient` deterministically echoes the retrieved context block, which keeps the eval harness's content assertions meaningful without any API.
+
+**Context markers live here.** `CONTEXT_BEGIN/END` are defined in `llm.py` and imported by the agent — the stub and the prompt template can never drift apart.
+
+## 12. LangGraph Agent (`agent_loop.py`)
+
+**Explicit `StateGraph`:** `router → {greet | retrieve} → integrate → verify → {generate | refuse}`. The Verifier is a named node with a conditional edge, not buried logic; `export_graph_mermaid()` renders the safety pipeline for documentation.
+
+**Prompt-injection hardening.** Retrieved content is wrapped in `<<<CONTEXT>>>` delimiters and the system prompt declares it untrusted data whose instructions must never be followed. A seeded Confluence page permanently contains a "SYSTEM OVERRIDE" injection string as a regression fixture; live Gemini quotes it as data and does not obey it, even when the user explicitly asks it to follow embedded instructions.
+
+**Layer 3 — post-generation leak scan.** Any hex register token (`0x…`) in the generated answer that does not appear in the authorized context blocks the response. Catches both leakage and hallucinated register addresses.
+
+**`AGENT_RETRIEVAL_TOP_K = 5`.** With 31 chunks across 7 documents, top-3 left the threshold *table* chunk at rank 4 behind three prose chunks (number-dense tables embed worse against natural-language questions than prose does); Gemini then truthfully answered "not in context". Retrieval depth 5 closes that gap at negligible cost.
+
+## 13. Identity & Auth (`auth.py`, middleware in `server.py`)
+
+**`user_role` is gone from every tool signature** — closing the documented weakness of the PoC. Identity is resolved server-side:
+
+- **HTTP:** `Authorization: Bearer <token>` → ASGI middleware → token→role registry (`AUTH_TOKENS` secret) → `ContextVar` scoped to the request. Mirrors an upstream OIDC claim flow: at CERN the same seam consumes CERN SSO (Keycloak) tokens and the registry lookup becomes a group-claim mapping.
+- **stdio:** the launching environment supplies `STDIO_ROLE` — local process identity, suited to a desktop client owned by one user.
+- A token mapping to an unknown role fails closed (treated as invalid, logged as a security event).
+
+**`ContextVar`, not a global.** Correct per-request isolation under asyncio concurrency; `role_context()` is also the test/agent seam for impersonating personas in-process.
+
+**DNS-rebinding protection disabled deliberately.** The MCP SDK's streamable-HTTP transport rejects non-localhost `Host` headers by default (HTTP 421), a protection aimed at *unauthenticated localhost dev servers*. This deployment is the opposite case: a public hostname behind Hugging Face's reverse proxy with its own bearer-token layer in front of every MCP route.
+
+## 14. Sync Automation
+
+Three cooperating triggers, all calling the same `initialize_substrate()`:
+
+1. **Startup sync** — mandatory anyway because HF free-tier disk is ephemeral; the container is disposable and Confluence is the state of record. Index rebuild is seconds at this scale.
+2. **In-process scheduler** — an asyncio task (spliced into the Starlette lifespan around the MCP session manager) re-syncs every `SYNC_INTERVAL_HOURS` (24h default). Zero infrastructure.
+3. **GitHub Actions nightly cron** — the external safety net: calls `POST /admin/sync` (requires the ATS_CORE_LEAD token); if unreachable, restarts the Space via the HF API and polls `/health`. Self-healing visible in the public Actions history.
+
+`/admin/sync` requires the lead role: sync is an administrative action, and the 403 for junior tokens is itself part of the security demo.
+
+## 15. Observability (`metrics.py`)
+
+**Hand-rolled Prometheus exposition** (~80 lines) instead of `prometheus_client`: full control of the registry lifecycle (resettable in tests), no global-registry conflicts, one less dependency — while staying byte-compatible with the Prometheus text format so the central CERN IT monitoring stack (Prometheus/Grafana) can scrape `/metrics` out of the box.
+
+Exported: `mcp_tool_calls_total{tool}`, `mcp_tool_latency_seconds_sum/_count{tool}` (Prometheus summary convention), `rbac_denials_total{layer}` (one label per security layer — auth, role validation, document ACL), `sync_runs_total{trigger}`, `sync_last_success_timestamp`, and `indexed_documents` / `indexed_chunks` gauges computed at scrape time. `/metrics` is public: counters carry no document content.
+
+## 16. Evaluation Framework (`eval_suite.py`, `eval/golden_dataset.yaml`)
+
+Eight gated scenarios; the harness exits non-zero on any failure:
+
+1–3. Authorized junior / adversarial junior / authorized lead access (PoC scenarios, retained).
+4. Context precision on a topical query.
+5. Table parsing integrity (every Markdown table vs its HTML source dimensions).
+6. **Golden-set retrieval**: 20 query/expected-document pairs in committed YAML; gate `hit_rate@3 ≥ 0.9`.
+7. **Adversarial probes**: role-escalation, embedded-injection and over-privilege queries from YAML, checked against both the agent answer and the raw retrieval; gate: 0 leaked markers.
+8. **Faithfulness (LLM-as-judge)**: the configured LLM judges whether every claim in sampled answers is supported by the retrieved context; gate ≥ 0.8. Skipped cleanly on the stub backend (no generative claims to judge).
+
+Leak detection matches **restricted content markers** (register addresses, offsets), not refusal phrasing — wording-independent, so it survives any LLM swap.
+
+**Two-speed CI.** Per-push: ruff → `pytest -m "not semantic"` → eval on tfidf/stub (seconds, no torch) + a Trivy HIGH/CRITICAL filesystem scan. Nightly: full dependency stack, complete test suite including the Chroma/embedding tests, eval on semantic + Gemini (judge included). Semantic tests `importorskip` their stack, so the fast path never needs torch installed.
+
+## 17. Container & Deployment
+
+**Dockerfile:** CPU-only torch from the PyTorch index (≈200 MB vs the multi-GB CUDA default); embedding model baked at build time under the non-root user's `HF_HOME`; only `/app/.chroma` is writable by the runtime user, the rest of `/app` stays root-owned; `HEALTHCHECK` uses stdlib urllib (no curl in slim images); port 7860 per HF convention.
+
+**Space provisioning is code** (`scripts/deploy_hf_space.py`): creates the Docker Space, sets secrets (Confluence credentials, Gemini key, token registry) and non-secret variables (backend selection), uploads exactly the allow-listed files, and writes the Space README with HF front-matter. Re-runnable; the Space is reproducible from scratch.
+
+**Confluence seeding is code** (`scripts/seed_confluence.py`): idempotent upserts (version bump on re-run), ACL labels applied per page, hard parsing cases (nested macros, multi-table pages) and the injection fixture included by design.
+
+## 18. Production Decision Log
+
+| Decision | Choice | Rejected | Why |
+|---|---|---|---|
+| Vector store | Chroma embedded | Qdrant/pgvector | No extra service; metadata filters cover ACL pushdown |
+| Embeddings | Local MiniLM | Embedding APIs | $0, air-gapped, no quota coupling |
+| RAG framework | LlamaIndex | LangChain retrieval | Retrieval-first; custom only where security differentiates |
+| Orchestration | LangGraph | Hand-rolled loop | Verifier becomes a visible, inspectable graph node |
+| LLM | Gemini tiers + Ollama switch | Single provider | $0 default; one-flag air-gapped mode |
+| ACL source (demo) | Confluence labels | Page restrictions | Restrictions unavailable on Cloud Free; identical seam |
+| Identity | Bearer→role registry, ContextVar | Client-supplied role | Mirrors OIDC claims; removes PoC weakness |
+| Role flags in Chroma | Integers (1) | Booleans | LlamaIndex `MetadataFilter` rejects bool values |
+| Metrics | Hand-rolled exposition | prometheus_client | Resettable registry, zero dep, format-compatible |
+| DNS-rebinding guard | Disabled | Allow-list hosts | Public reverse-proxied deployment with own auth layer |
+| State of record | Confluence | Persistent volume | Disposable container; free tier compatible |
+| Sync triggers | startup + in-process daily + GH cron | Webhooks | Ephemeral disk mandates startup sync; cron preferred; no stable webhook receiver needed |

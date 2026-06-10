@@ -1,0 +1,45 @@
+name: Nightly Confluence Sync
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+env:
+  SPACE_HOST: https://hoodieylya13-mcp-confluence-documentation-rag.hf.space
+  SPACE_REPO: HoodieYlya13/mcp-confluence-documentation-rag
+
+jobs:
+  sync:
+    name: Trigger incremental sync on the live MCP server
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Call authenticated sync endpoint
+        id: sync
+        continue-on-error: true
+        run: |
+          response=$(curl -sf -X POST "$SPACE_HOST/admin/sync" \
+            -H "Authorization: Bearer ${{ secrets.SPACE_SYNC_TOKEN }}" \
+            --max-time 300)
+          echo "Sync report: $response"
+
+      - name: Restart Space if sync endpoint unreachable
+        if: steps.sync.outcome == 'failure'
+        run: |
+          echo "Sync endpoint unreachable - restarting Space (startup sync will run)."
+          curl -sf -X POST "https://huggingface.co/api/spaces/$SPACE_REPO/restart" \
+            -H "Authorization: Bearer ${{ secrets.HF_TOKEN }}"
+
+      - name: Verify health after recovery
+        if: steps.sync.outcome == 'failure'
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf "$SPACE_HOST/health"; then
+              echo "Space healthy after restart."
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "Space failed to become healthy after restart."
+          exit 1

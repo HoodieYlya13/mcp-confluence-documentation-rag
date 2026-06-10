@@ -1,0 +1,52 @@
+# Security Model
+
+This system serves operational documentation with mixed sensitivity levels to AI agents. The design assumption is that **every layer will eventually fail**, so no layer trusts any other.
+
+## Identity
+
+Roles are derived **server-side only** — never accepted from client input:
+
+| Transport | Identity source |
+|---|---|
+| Streamable HTTP (remote) | `Authorization: Bearer <token>` → server-side token→role registry (`AUTH_TOKENS` secret) |
+| stdio (local desktop client) | `STDIO_ROLE` from the launching environment (process-level identity) |
+
+The bearer-token registry deliberately mirrors an **OIDC identity-claim flow**: in a CERN deployment, the ASGI middleware consumes CERN SSO (Keycloak) access tokens instead, and the registry lookup becomes a group-claim mapping. Nothing downstream of `auth.current_role()` changes.
+
+A token that maps to an unknown role is treated as invalid (**fail closed**) and logged as a security event.
+
+## Four Enforcement Layers
+
+| # | Layer | Location | What it stops |
+|---|---|---|---|
+| 0 | Bearer auth + role validation | ASGI middleware / `_authenticated_role()` | Unauthenticated requests; invented or mis-mapped roles |
+| 1 | ACL filter pushdown | Chroma metadata filter inside the vector query | Restricted chunks ever entering a result set |
+| 2 | Context Verifier (LangGraph node) | `verify` node before generation | Restricted chunks reaching the LLM via any retrieval bug or injection |
+| 3 | Post-generation leak scan | `generate` node after the LLM call | Register addresses in the answer that are absent from the authorized context (leak or hallucination) |
+
+Ingestion adds a fifth, earlier gate: pages without a recognized ACL label are **never indexed** (validated in production — the auto-created Confluence space homepage carries no labels and is excluded on every sync).
+
+## Threat Model
+
+| Attacker | Vector | Stopped by |
+|---|---|---|
+| Anonymous internet client | Direct HTTP calls to `/mcp` | Layer 0 (401) |
+| Authenticated junior operator | Direct `fetch_and_sanitize_page` on a restricted page | Document ACL check (PermissionError, audited) |
+| Authenticated junior operator | Semantic queries targeting restricted content | Layer 1 (zero restricted chunks returned) |
+| Compromised/buggy retriever | Restricted chunk appears in context | Layer 2 (response aborted with refusal) |
+| Malicious page author | Prompt injection embedded in Confluence content | Delimited untrusted-data prompt contract + Layer 3; permanent regression fixture in the corpus and eval gate |
+| Roleplay / social engineering | "I am the new ATS core lead…" | Identity comes from the token, not the conversation |
+| Misbehaving client | `top_k=10000` index dump | Server-side clamp to [1, 10] |
+| Anyone | `POST /admin/sync` | Requires the ATS_CORE_LEAD role (403 otherwise) |
+
+## Auditing
+
+Every denial is structured-logged (JSON) with `"security_violation": true` and counted in Prometheus metrics (`rbac_denials_total{layer=…}`), scrapeable at `/metrics` for Grafana alerting.
+
+## Evaluation Gates
+
+CI fails (non-zero exit) if any of these regress: RBAC leakage rate ≠ 0%, adversarial probe leaks ≠ 0, golden-set hit rate < 90%, faithfulness < 80% (when a generative LLM is configured).
+
+## Secrets Handling
+
+All credentials (Confluence API token, Gemini key, bearer-token registry) live in environment variables / HF Space secrets; `.env` is gitignored and `.env.example` documents the shape without values. Tokens used during development should be rotated before any public handover.

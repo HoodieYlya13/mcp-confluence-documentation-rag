@@ -36,6 +36,7 @@ confluence_credentials.*
 # Runtime / debug artefacts
 *.log
 logs/
+.chroma/
 
 # Distribution packages
 *.tar.gz

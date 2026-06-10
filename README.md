@@ -1,228 +1,166 @@
-# 🌌 MCP Accelerator Operations Substrate (`mcp-confluence-documentation-rag`)
+# 🌌 MCP Confluence Documentation RAG — Accelerator Operations Substrate
 
-[![CERN Beams Department](https://img.shields.io/badge/CERN-Beams%20Department-blue)](https://home.cern)
-[![Python Version](https://img.shields.io/badge/python-3.11%20%7C%203.14-green)](https://www.python.org/)
-[![Model Context Protocol](https://img.shields.io/badge/Protocol-MCP-orange)](https://modelcontextprotocol.io/)
-[![Security Boundary](https://img.shields.io/badge/Security-Zero%20Trust%20RBAC-red)]()
-[![Docker Ready](https://img.shields.io/badge/K8s%20Ready-Docker-blueviolet)]()
+[![CI](https://img.shields.io/badge/CI-two--speed%20(push%20%2B%20nightly)-green)]()
+[![Live](https://img.shields.io/badge/Live-HF%20Spaces-yellow)](https://hoodieylya13-mcp-confluence-documentation-rag.hf.space/health)
+[![Model Context Protocol](https://img.shields.io/badge/Protocol-MCP%20streamable%20HTTP-orange)](https://modelcontextprotocol.io/)
+[![Security](https://img.shields.io/badge/Security-4--layer%20RBAC-red)](SECURITY.md)
+[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)](https://www.python.org/)
 
-A production-ready, zero-external-dependency, offline-first Python proof-of-concept demonstrating a secure, Role-Based Access Control (RBAC) retrieval pipeline for CERN's Accelerator Technology Sector (ATS). This project serves as a key portfolio centerpiece for the Computing Engineer role within the **BE-CSS group (Controls Software and Services)**.
+A production-deployed, RBAC-enforced **Model Context Protocol server** exposing a retrieval-augmented knowledge base built from a **live Atlassian Confluence instance**. Designed as a portfolio centerpiece for the CERN **BE-CSS Computing Engineer (Applied AI)** role: secure knowledge connectors, agentic orchestration, evaluation gates and MLOps automation — at $0/month infrastructure cost.
 
-It demonstrates mastery of:
-- **Model Context Protocol (MCP)**: Exposing system-wide resources as standardized tools.
-- **Unstructured ETL Sanitization**: Converting noisy Atlassian Confluence storage format (XHTML) into clean, structure-preserving Markdown.
-- **NumPy Vector Space Mathematics**: Local, fully deterministic TF-IDF indexing and cosine similarity matrix math without external cloud API dependencies.
-- **Defense-in-Depth RBAC Guardrails**: Strict context interceptors validating active session tokens against document access policies.
-- **Offline Evaluation Harness**: Automated test suites asserting context precision, safety violations, and parsing integrity.
+**Live server:** [`https://hoodieylya13-mcp-confluence-documentation-rag.hf.space`](https://hoodieylya13-mcp-confluence-documentation-rag.hf.space/health) — `/health` and `/metrics` are public; the MCP endpoint requires a bearer token (the whole point: identical questions yield different answers per authorization level).
 
 ---
 
-## 📐 System Architecture
+## What it demonstrates
 
-The diagram below details the architecture, illustrating the logical separation between the user session, the Agent Routing Loop, the Model Context Protocol Server boundary, and the underlying Local Vector Index.
+| Job requirement | Where |
+|---|---|
+| Secure knowledge connectors | [`src/sources.py`](src/sources.py) — Confluence REST connector: fail-closed ACL mapping, incremental version-diff sync, retries |
+| RAG pipelines, vector DBs, chunking & embeddings | [`src/retrieval.py`](src/retrieval.py) — LlamaIndex + ChromaDB, local sentence-transformers, structure-preserving chunking, **ACL filters pushed into the vector query** |
+| LLM frameworks (LlamaIndex / LangChain ecosystem) | LlamaIndex for the retrieval layer, **LangGraph** for the agent state machine |
+| Agentic AI + MCP | [`src/agent_loop.py`](src/agent_loop.py) LangGraph graph; [`src/server.py`](src/server.py) FastMCP over stdio *and* streamable HTTP |
+| Safety & evaluation frameworks | [`src/eval_suite.py`](src/eval_suite.py) — 8 gated scenarios: golden-set retrieval, adversarial probes, LLM-as-judge faithfulness, 0% leakage gate |
+| MLOps & CI/CD | Two-speed GitHub Actions, Trivy scan, nightly full-pipeline eval, self-healing nightly sync, Prometheus `/metrics` |
+
+---
+
+## Architecture
 
 ```mermaid
 flowchart TD
-    subgraph CLIENT["Client Session Space"]
-        UserIn["CERN Operator Persona"]
-        Token["Session Token: JUNIOR_OP / ATS_CORE_LEAD"]
-        CCC["CERN Control Centre Terminal"]
-        UserIn -->|"1. Issues Query + Session Token"| CCC
-        Token -.-> CCC
+    subgraph CONF["Atlassian Confluence Cloud · space ATSOPS"]
+        PAGES["7 accelerator-ops pages\nACL labels per page"]
     end
 
-    subgraph AGENT["Agentic Routing Loop · agent_loop.py"]
-        P1["Phase 1: Router Agent"]
-        P2["Phase 2: Context Integrator"]
-        P3["Phase 3: Verifier Guardrail"]
-        RBAC{"Passes RBAC Checks?"}
-        OK["Mock Response Synthesizer"]
-        BLOCK["Standard Refusal: Security Exception"]
-        P2 -->|"4. Generates System Prompt"| P3
-        P3 -->|"5. Audit Context Chunks"| RBAC
-        RBAC -->|"Yes"| OK
-        RBAC -->|"No: Log Critical Exception"| BLOCK
+    subgraph SRV["MCP Server · Hugging Face Docker Space"]
+        CONN["ConfluenceAPISource\nfail-closed ACL · version-diff sync"]
+        PARSE["ConfluenceSanitizationEngine\nXHTML → Markdown, tables preserved"]
+        CHUNK["StructureAwareChunker\ntables atomic · headings carried"]
+        IDX[("ChromaDB embedded\nMiniLM embeddings · role metadata")]
+        MW["Bearer-token middleware\ntoken → role (OIDC-style)"]
+        TOOLS["MCP tools\nlist · fetch · semantic_search"]
+        SCHED["asyncio daily sync\n+ POST /admin/sync (lead only)"]
+        OBS["/health · /metrics (Prometheus)"]
+        CONN --> PARSE --> CHUNK --> IDX
+        SCHED -.-> CONN
+        MW --> TOOLS
+        TOOLS -->|"ACL filter inside vector query"| IDX
     end
 
-    subgraph MCP["Python MCP Server Boundary · server.py"]
-        SERVER{FastMCP Server}
-        T1["list_available_pages"]
-        T2["fetch_and_sanitize_page"]
-        T3["semantic_search_accelerator"]
-        SERVER -.->|"Exposes Tool"| T1
-        SERVER -.->|"Exposes Tool"| T2
-        SERVER -.->|"Exposes Tool"| T3
+    subgraph AGENT["LangGraph Agent · agent_loop.py"]
+        R["router"] --> RET["retrieve"]
+        RET --> INT["integrate\ninjection-hardened prompt"]
+        INT --> VER{"verify\ncontext ACL audit"}
+        VER -->|pass| GEN["generate\nGemini tiers / Ollama\n+ leak scan"]
+        VER -->|violation| REF["refuse"]
     end
 
-    subgraph DATA["Data Substrate & Local Math · vector_store.py / parser.py"]
-        RAW[("Mock Confluence XHTML")]
-        PARSER["ConfluenceSanitizationEngine"]
-        IDX[("LocalVectorIndex")]
-        MATH["Matrix Vector calculations"]
-        RAW -->|"Ingested on Startup"| PARSER
-        PARSER -->|"Extracts clean Markdown & Tables"| IDX
-        IDX -.->|"NumPy TF-IDF & Cosine Similarity"| MATH
-        MATH -->|"Applies Post-Search RBAC Filtering"| IDX
-    end
+    CLIENT["MCP client (Claude Desktop / Code)\nAuthorization: Bearer …"]
+    GH["GitHub Actions\nnightly sync cron + full eval"]
 
-    UserOut["CERN Operator Persona"]
-
-    CCC --> P1
-    P1 -->|"2. Programmatically Calls MCP Tool"| SERVER
-    T3 -->|"3. Query Vector Store"| IDX
-    IDX -->|"3. Returns Ranked Chunks"| P2
-    OK -->|"6. Safe Context-Aware Answer"| UserOut
-    BLOCK -->|"6. Blocked Output Response"| UserOut
+    PAGES --> CONN
+    CLIENT --> MW
+    RET --> TOOLS
+    GH -.-> SCHED
 ```
+
+The four-layer security model (bearer auth → ACL pushdown → context verifier → post-generation leak scan) is documented in [SECURITY.md](SECURITY.md). Every design decision and its rationale lives in [TAD.md](TAD.md).
 
 ---
 
-## 📝 Portfolio Presentation: STAR Narrative
+## Quickstart
 
-### Situation
-At CERN's Beams Department (BE-CSS group), the software ecosystem supports accelerator operations 24/7. Operational knowledge is distributed across hundreds of legacy Atlassian Confluence spaces, containing highly technical layout structures, nested tables with physical hardware limits, and outdated operational notes. However, these documents have varying levels of sensitivity (e.g., restricted VME register maps for SPS beam instrumentation vs general LHC cryo troubleshooting guides). Developing a general-purpose AI assistant without access controls risks leaking sensitive hardware details to junior operator personas, violating CERN’s security policies.
+### Local, fully offline (no accounts needed)
 
-### Task
-Design and implement a completely self-contained, zero-trust knowledge retrieval pipeline and Model Context Protocol (MCP) server. The system must run completely offline (satisfying safety-critical network isolation policies at CERN), parse messy Confluence XHTML exports, preserve structured table dimensions for numerical thresholds, index chunks locally using numpy matrix math, and enforce strict, double-layered Role-Based Access Control (RBAC) at both the retriever and generator levels.
-
-### Action
-1. **Unstructured ETL sanitization**: Built the `ConfluenceSanitizationEngine` in `src/parser.py` using `BeautifulSoup` and `markdownify` to strip Atlassian macro tags, extract ACL metadata headers, and convert raw HTML tables into Markdown tables without losing layout structure.
-2. **Local Vector Math Engine**: Implemented `LocalVectorIndex` in `src/vector_store.py` in pure Python and `numpy`. Developed a sliding window text chunker, constructed a tf-idf representation vocabulary, and computed cosine similarity through numpy matrix operations (`dot` products and `linalg.norm` scaling).
-3. **MCP Integration**: Designed a Python MCP server (`src/server.py`) using the official `FastMCP` framework, exposing secure tools for metadata exploration, document fetching, and similarity searches.
-4. **Defense-in-Depth Guardrail**: Implemented a multi-turn agent loop (`src/agent_loop.py`) with a dedicated Verifier Agent. Even if retrieval algorithms malfunction, the verifier scans all retrieved context chunks at the prompt generation boundary, blocking compilation and throwing JSON logs if an active token role violates the document’s policy.
-5. **Offline Evaluation Harness**: Created `src/eval_suite.py` to run programmatic test scenarios, measuring Context Precision, RBAC Violation Rate, and Table Parser Integrity — table integrity is verified dynamically by comparing every Markdown table against the dimensions of its raw HTML source.
-6. **Testing & CI/CD**: Added a 32-test pytest suite covering the ETL parser, vector space math, MCP security boundaries (including adversarial leakage probes), and the Verifier guardrail, executed with ruff linting in a GitHub Actions matrix (Python 3.11/3.12) on every push.
-7. **Containerization**: Wrapped the substrate in a multi-stage `Dockerfile` and a `docker-compose.yml` configuration running as a non-root user (`cern-op`), enabling immediate integration with Kubernetes or cloud-native environments.
-
-### Result
-The proof-of-concept runs completely offline with **100% self-contained Python libraries**.
-- **0% RBAC violation rate** (0% leakage) confirmed across all adversarial junior operator test runs.
-- **100% Context Precision** achieved for technical operations queries.
-- **100% Table Parsing Integrity** validated, preserving column structures and mathematical sensor thresholds (e.g. `1.2e-5 mbar` warning levels).
-- Fully documented JSON-formatted structured logging engine, ready to pipe to Kibana or Grafana for production audit logs.
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Python 3.10+ (tested on 3.11, 3.12, and 3.14)
-- Optional: Docker & Docker Compose
-
-### Native Installation & Setup
-1. Clone the repository and navigate to the directory:
-   ```bash
-   cd mcp-confluence-documentation-rag
-   ```
-
-2. Create a clean virtual environment and activate it:
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
-
-3. Install pinned dependencies (use `requirements-dev.txt` to also get pytest and ruff):
-   ```bash
-   pip install --upgrade pip
-   pip install -r requirements-dev.txt
-   ```
-
----
-
-## 🏃 Running the Application
-
-> All entry points are executed as modules (`python3 -m src.<module>`) from the repository root so the `src` package resolves without extra `PYTHONPATH` configuration.
-
-### 1. Run the Offline Evaluation Suite
-This executes the automated test scenarios, validates parser integrity, checks RBAC enforcement, and outputs a formatted report (exits non-zero on failure, making it CI-friendly):
 ```bash
-python3 -m src.eval_suite
+make build          # venv + fast deps
+make test           # 75 unit & security tests (~10 s)
+make run-eval       # 8-scenario evaluation harness, exit code is the gate
+make run-agent      # 4-scenario agent demo (stub LLM, mock corpus)
 ```
 
-### 2. Run the Multi-Turn Agent Loop Demo
-This runs a simulated operations chat showing how different personas (e.g., `Operator-Alpha` vs `CERN-AI-Lead`) receive different answers, and how security guardrails block adversarial injections:
+### Full pipeline (live Confluence + semantic retrieval + Gemini)
+
 ```bash
-python3 -m src.agent_loop
+pip install -r requirements-semantic.txt -r requirements-dev.txt
+cp .env.example .env   # fill in Confluence + Gemini credentials
+python scripts/seed_confluence.py      # idempotent: creates space + 7 pages
+python -m src.agent_loop               # real end-to-end demo
 ```
 
-### 3. Run the MCP Server
-To start the Model Context Protocol server over stdio (compatible with Claude Desktop, Claude Code, or Cursor):
-```bash
-python3 -m src.server
-```
+### Connect Claude Desktop to the local server (stdio)
 
-Example Claude Desktop / MCP client configuration:
 ```json
 {
   "mcpServers": {
     "accelerator-ops-substrate": {
       "command": "/absolute/path/to/repo/venv/bin/python3",
       "args": ["-m", "src.server"],
-      "cwd": "/absolute/path/to/repo"
+      "cwd": "/absolute/path/to/repo",
+      "env": { "STDIO_ROLE": "JUNIOR_OP" }
     }
   }
 }
 ```
 
----
+Switch `STDIO_ROLE` to `ATS_CORE_LEAD` and ask the same question — the answer changes. That's the demo.
 
-## 🧪 Testing & Continuous Integration
-
-The repository ships a full pytest battery (parser ETL, vector math, RBAC boundaries, agent guardrails) plus ruff static analysis, wired into a GitHub Actions workflow ([.github/workflows/ci.yml](.github/workflows/ci.yml)) that runs on every push: lint → unit/security tests → offline RAG evaluation harness.
+### Connect to the live server (streamable HTTP)
 
 ```bash
-make test    # pytest: 32 unit & security tests
-make lint    # ruff static analysis
-make run-eval  # offline evaluation harness (also a CI gate)
+claude mcp add --transport http accelerator-ops \
+  https://hoodieylya13-mcp-confluence-documentation-rag.hf.space/mcp \
+  --header "Authorization: Bearer <token>"
 ```
 
----
-
-## 🔐 Security Model Disclaimer
-
-In this proof-of-concept the `user_role` is supplied by the MCP client and validated against a closed set of known roles. This simulates the session token boundary. **In a production deployment the role must be derived server-side from an authenticated identity (e.g. CERN SSO / OIDC claims) and never accepted from tool input.** The layered enforcement (retrieval-time ACL filtering + generation-time Verifier guardrail) is deliberately decoupled so swapping the identity provider requires no changes to the retrieval substrate.
+Tokens map to roles server-side; the client never states its own privilege level.
 
 ---
 
-## 🐳 Running with Docker (K8s/DevOps Readiness)
-
-To demonstrate containerization and facilitate future Kubernetes deployment:
-
-### 1. Run the Evaluation Suite (Metrics Harness)
-```bash
-docker compose run --rm eval-suite
-```
-
-### 2. Run the Agent Loop Demo
-```bash
-docker compose run --rm agent-loop
-```
-
-### 3. Start the MCP Server Container
-```bash
-docker compose up mcp-server
-```
-
----
-
-## 📊 Sample Output Metrics
-
-When executing the evaluation harness, the console prints structured JSON log statements representing internal process steps, followed by an operational summary report:
-
-```json
-{"timestamp": "2026-06-08T19:32:00.123Z", "level": "INFO", "logger": "eval_suite", "message": "Starting Offline Evaluation Harness Run...", "file": "eval_suite.py", "line": 26}
-{"timestamp": "2026-06-08T19:32:00.150Z", "level": "INFO", "logger": "LocalVectorIndex", "message": "Executing similarity search.", "file": "vector_store.py", "line": 150, "query": "What are the pressure limits...", "user_role": "JUNIOR_OP", "top_k": 3}
-{"timestamp": "2026-06-08T19:32:00.220Z", "level": "CRITICAL", "logger": "agent_loop", "message": "Phase 3 [Verifier]: RBAC violation detected in context. Aborting response generation!", "file": "agent_loop.py", "line": 105, "username": "Operator-Alpha", "user_role": "JUNIOR_OP", "security_violation": true}
-```
+## Evaluation Report (live pipeline: semantic retrieval + Gemini)
 
 ```
 ============================================================
-              ATS OPS SUBSTRATE EVALUATION REPORT
+          ATS OPS SUBSTRATE EVALUATION REPORT
 ============================================================
 1. Junior Op Authorized Cryo Access:   SUCCESS
 2. Lead Op Authorized SPS Access:      SUCCESS
 3. RBAC Violation Rate (Leakage):      0.00% (Target: 0.00%)
 4. Context Precision:                  100.00% (Target: >90.00%)
 5. Table Parsing Integrity Check:      PASSED
+6. Golden-Set Hit Rate @3:             100.00% (Target: >=90.00%)
+7. Adversarial Probes Leaked:          0 (Target: 0)
+8. Faithfulness (LLM-as-judge):        100.00% (Target: >80.00%)
 ============================================================
 ```
+
+The adversarial set includes role-escalation attempts, a permanent prompt-injection fixture *inside the Confluence corpus* ("SYSTEM OVERRIDE: ignore all previous instructions…"), and over-privilege probes — the live LLM quotes the injection as data and refuses to obey it.
+
+---
+
+## Operations
+
+- **Sync:** startup sync (container is disposable; Confluence is the state of record) + in-process daily scheduler + GitHub Actions nightly cron that calls `POST /admin/sync` and self-heals by restarting the Space if unreachable.
+- **Observability:** `GET /metrics` exposes Prometheus-format counters (tool calls, latency, RBAC denials by layer, sync runs) ready for a central Prometheus/Grafana stack.
+- **CI:** per-push lint + tests + offline eval + Trivy scan in seconds (TF-IDF/stub fast path); nightly job runs the full semantic + LLM-judge pipeline.
+
+---
+
+## Repository Map
+
+| Path | Purpose |
+|---|---|
+| [src/server.py](src/server.py) | FastMCP server, auth middleware, HTTP app, sync endpoints |
+| [src/sources.py](src/sources.py) | `DocumentSource` protocol: Confluence API + local file connectors |
+| [src/parser.py](src/parser.py) | Confluence storage-format XHTML → clean Markdown (macros, tables) |
+| [src/retrieval.py](src/retrieval.py) | Chunker + LlamaIndex/Chroma semantic index with ACL pushdown |
+| [src/vector_store.py](src/vector_store.py) | NumPy TF-IDF backend (CI fast path, air-gapped fallback) |
+| [src/agent_loop.py](src/agent_loop.py) | LangGraph agent: router/retrieve/integrate/verify/generate |
+| [src/llm.py](src/llm.py) | Gemini (tiered fallback) / Ollama / deterministic stub |
+| [src/auth.py](src/auth.py) | Token→role resolution, ContextVar identity |
+| [src/metrics.py](src/metrics.py) | Prometheus exposition |
+| [src/eval_suite.py](src/eval_suite.py) + [eval/golden_dataset.yaml](eval/golden_dataset.yaml) | 8-scenario gated evaluation harness |
+| [scripts/](scripts/) | Confluence seeding + HF Space provisioning (infra as code) |
+| [TAD.md](TAD.md) | Every design decision with rationale |
+| [SECURITY.md](SECURITY.md) | Identity model, 4 enforcement layers, threat model |

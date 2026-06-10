@@ -7,9 +7,14 @@ requires-python = ">=3.10"
 license = { text = "MIT" }
 dependencies = [
     "beautifulsoup4==4.12.3",
+    "google-genai==2.8.0",
+    "httpx==0.28.1",
+    "langgraph==1.2.4",
     "markdownify==0.13.1",
-    "mcp==1.2.1",
+    "mcp==1.27.2",
     "numpy==2.2.3",
+    "pydantic-settings==2.14.1",
+    "pyyaml==6.0.3",
 ]
 
 [project.optional-dependencies]
@@ -22,6 +27,9 @@ dev = [
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-q --strict-markers"
+markers = [
+    "semantic: requires the local embedding model, Chroma and LlamaIndex (heavy, nightly CI)",
+]
 
 [tool.ruff]
 line-length = 110
@@ -34,3 +42,6 @@ ignore = [
     "UP006", # Keep typing.List/Dict for broad Python version readability
     "UP035",
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*" = ["E501"] # Confluence storage-format page bodies are long HTML literals

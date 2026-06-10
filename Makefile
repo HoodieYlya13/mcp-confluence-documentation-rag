@@ -35,20 +35,38 @@ build:
 	./venv/bin/pip install --upgrade pip
 	./venv/bin/pip install -r requirements-dev.txt
 
+build-full:
+	./venv/bin/pip install -r requirements-semantic.txt -r requirements-dev.txt
+
 test:
 	./venv/bin/python3 -m pytest
 
+test-fast:
+	./venv/bin/python3 -m pytest -m "not semantic"
+
 lint:
-	./venv/bin/ruff check src tests
+	./venv/bin/ruff check src tests scripts
 
 run-eval:
-	./venv/bin/python3 -m src.eval_suite
+	DOCUMENT_SOURCE=local RETRIEVER_BACKEND=tfidf LLM_BACKEND=stub ./venv/bin/python3 -m src.eval_suite
+
+run-eval-full:
+	DOCUMENT_SOURCE=local RETRIEVER_BACKEND=semantic LLM_BACKEND=auto ./venv/bin/python3 -m src.eval_suite
 
 run-agent:
 	./venv/bin/python3 -m src.agent_loop
 
 run-server:
 	./venv/bin/python3 -m src.server
+
+run-server-http:
+	MCP_TRANSPORT=streamable-http ./venv/bin/python3 -m src.server
+
+seed:
+	./venv/bin/python3 scripts/seed_confluence.py
+
+deploy:
+	./venv/bin/python3 scripts/deploy_hf_space.py
 
 # ------------------------------------------
 # Docker execution targets

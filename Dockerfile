@@ -1,43 +1,48 @@
 # ==========================================
-# Multi-stage Dockerfile for CERN Portfolio
+# Multi-stage Dockerfile — MCP Confluence RAG
+# Production target: Hugging Face Spaces (Docker, port 7860)
 # ==========================================
 
-# Phase 1: Dependency builder
 FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-# Install build dependencies if needed
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy and install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+COPY requirements.txt requirements-semantic.txt ./
+RUN pip install --no-cache-dir --user torch --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir --user -r requirements-semantic.txt
 
-# Phase 2: Runtime runner image
 FROM python:3.11-slim AS runner
 
 WORKDIR /app
 
-# Create a non-privileged group and user for security compliance
 RUN groupadd -g 10001 cern-group && \
     useradd -u 10001 -g cern-group -m -s /bin/bash cern-op
 
-# Copy installed dependencies from the builder phase
-COPY --from=builder /root/.local /home/cern-op/.local
-# Copy only the runtime artifacts (never the local venv or caches)
+COPY --from=builder --chown=cern-op:cern-group /root/.local /home/cern-op/.local
 COPY --chown=cern-op:cern-group src/ /app/src/
 COPY --chown=cern-op:cern-group mock_cern_confluence/ /app/mock_cern_confluence/
 
-# Add pip binary path and pythonpath
+RUN mkdir -p /app/.chroma && chown cern-op:cern-group /app/.chroma
+
 ENV PATH=/home/cern-op/.local/bin:$PATH
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
+ENV HF_HOME=/home/cern-op/.cache/huggingface
 
-# Use the non-root user
 USER cern-op
 
-# Default action is running the offline metrics evaluation harness
-CMD ["python", "-m", "src.eval_suite"]
+RUN python -c "from llama_index.embeddings.huggingface import HuggingFaceEmbedding; \
+    HuggingFaceEmbedding(model_name='sentence-transformers/all-MiniLM-L6-v2')"
+
+ENV MCP_TRANSPORT=streamable-http
+ENV HTTP_PORT=7860
+EXPOSE 7860
+
+HEALTHCHECK --interval=60s --timeout=5s --start-period=120s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:7860/health', timeout=4)"
+
+CMD ["python", "-m", "src.server"]

@@ -1,0 +1,38 @@
+name: Nightly Full Evaluation
+
+on:
+  schedule:
+    - cron: "47 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  full-eval:
+    name: Full pipeline eval (semantic retrieval + LLM judge)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install full dependency stack (CPU torch + embeddings)
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements-semantic.txt -r requirements-dev.txt
+
+      - name: Run complete test suite including semantic backend
+        run: pytest
+
+      - name: Run evaluation harness on the full pipeline
+        env:
+          DOCUMENT_SOURCE: local
+          RETRIEVER_BACKEND: semantic
+          LLM_BACKEND: auto
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python -m src.eval_suite
