@@ -110,7 +110,7 @@ def _instrumented(tool_name: str):
 @mcp.tool()
 @_instrumented("list_available_pages")
 def list_available_pages() -> List[Dict[str, Any]]:
-    """Lists metadata for documentation pages (e.g., SPS beam instrumentation, Linac4 SOPs, LHC cryogenics) accessible to the authenticated session.
+    """Lists metadata for accessible pages (e.g. SPS beam instrumentation, Linac4 SOPs, LHC cryogenics).
 
     The caller's role is derived server-side from the authenticated identity
     (bearer token over HTTP, configured identity over stdio) and is never
@@ -139,7 +139,9 @@ def list_available_pages() -> List[Dict[str, Any]]:
 @mcp.tool()
 @_instrumented("fetch_and_sanitize_page")
 def fetch_and_sanitize_page(page_id: str) -> str:
-    """Retrieves the sanitized Markdown content of an accelerator operations page (e.g. lhc_cryo_troubleshooting, linac4_injection_sop, sps_beam_instrumentation), enforcing RBAC.
+    """Retrieves the sanitized Markdown content of an accelerator operations page, enforcing RBAC.
+
+    Works for pages like lhc_cryo_troubleshooting, linac4_injection_sop, sps_beam_instrumentation.
 
     Args:
         page_id: Unique identifier of the document (Confluence page id).
@@ -184,7 +186,10 @@ def fetch_and_sanitize_page(page_id: str) -> str:
 @mcp.tool()
 @_instrumented("semantic_search_accelerator")
 def semantic_search_accelerator(query: str, top_k: int = 3) -> List[Dict[str, Any]]:
-    """Performs an RBAC-secure semantic similarity search over the accelerator operations, LHC cryogenics, SPS beam instrumentation, Linac4, VME crate registers, and troubleshooting documentation index.
+    """Performs an RBAC-secure semantic similarity search over the accelerator operations index.
+
+    Includes documents on LHC cryogenics, SPS beam instrumentation, Linac4, VME crate registers,
+    and troubleshooting documentation.
 
     Args:
         query: The search query.
