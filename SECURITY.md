@@ -15,6 +15,10 @@ The bearer-token registry deliberately mirrors an **OIDC identity-claim flow**: 
 
 A token that maps to an unknown role is treated as invalid (**fail closed**) and logged as a security event.
 
+## Document ACL Provenance
+
+Per-page ACLs are currently encoded as Confluence labels (`acl-junior-op`, `acl-ats-core-lead`) mapped to roles through `Settings` — a deliberate workaround for Confluence Cloud **Free**, which does not support page restrictions. On a paid Atlassian plan (Standard and up), the connector swaps the label reader for Confluence's native authorization data: page restrictions read via `expand=restrictions.read.restrictions` and space permissions, with groups synced from the identity provider (Atlassian Guard / SCIM). Roles then follow automatically from group membership administered in Confluence itself — no label convention to maintain, and a page's ACL can never drift from what its authors see in the Confluence UI. The adapter seam is identical either way, and the fail-closed rule is unchanged: a page whose authorization cannot be resolved is never indexed.
+
 ## Four Enforcement Layers
 
 | # | Layer | Location | What it stops |
