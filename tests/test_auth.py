@@ -110,3 +110,27 @@ def test_admin_sync_allows_lead(server_app_client):
     payload = response.json()
     assert payload["status"] == "synced"
     assert payload["indexed_documents"] == 3
+
+
+def test_admin_db_dump_requires_token(server_app_client):
+    response = server_app_client.get("/admin/db-dump")
+    assert response.status_code == 401
+
+
+def test_admin_db_dump_rejects_junior(server_app_client):
+    response = server_app_client.get(
+        "/admin/db-dump", headers={"Authorization": "Bearer test-junior-token"}
+    )
+    assert response.status_code == 403
+
+
+def test_admin_db_dump_allows_lead(server_app_client):
+    response = server_app_client.get(
+        "/admin/db-dump", headers={"Authorization": "Bearer test-lead-token"}
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert "retriever_backend" in payload
+    assert "total_chunks" in payload
+    assert "chunks" in payload
+    assert isinstance(payload["chunks"], list)

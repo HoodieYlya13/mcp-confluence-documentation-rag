@@ -315,9 +315,48 @@ def build_http_app():
             metrics.render_prometheus(), media_type="text/plain; version=0.0.4"
         )
 
+    async def admin_db_dump(request):
+        role = current_role()
+        if role != "ATS_CORE_LEAD":
+            logger.warning(
+                "Rejected admin DB dump request from non-lead role.",
+                extra={"user_role": role, "security_violation": True},
+            )
+            return JSONResponse(
+                {"error": "DB dump requires the ATS_CORE_LEAD role."}, status_code=403
+            )
+
+        chunks_data = []
+        for chunk in INDEX.chunks:
+            chunks_data.append({
+                "doc_id": chunk.doc_id,
+                "space": chunk.space,
+                "allowed_roles": chunk.allowed_roles,
+                "last_modified": chunk.last_modified,
+                "text": chunk.text,
+                "chunk_index": chunk.chunk_index,
+            })
+
+        response_data = {
+            "retriever_backend": type(INDEX).__name__,
+            "total_chunks": len(chunks_data),
+            "chunks": chunks_data,
+        }
+
+        if hasattr(INDEX, "_collection"):
+            try:
+                collection_data = INDEX._collection.get(include=["metadatas", "documents"])
+                response_data["chroma_collection"] = collection_data
+            except Exception as e:
+                logger.error("Failed to fetch raw Chroma collection data.", exc_info=True)
+                response_data["chroma_error"] = str(e)
+
+        return JSONResponse(response_data)
+
     app.router.routes.insert(0, Route("/health", health, methods=["GET"]))
     app.router.routes.insert(0, Route("/metrics", metrics_endpoint, methods=["GET"]))
     app.router.routes.insert(0, Route("/admin/sync", admin_sync, methods=["POST"]))
+    app.router.routes.insert(0, Route("/admin/db-dump", admin_db_dump, methods=["GET"]))
 
     original_lifespan = app.router.lifespan_context
 
