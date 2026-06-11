@@ -85,7 +85,7 @@ make run-agent      # 4-scenario agent demo (stub LLM, mock corpus)
 ```bash
 pip install -r requirements-semantic.txt -r requirements-dev.txt
 cp .env.example .env   # fill in Confluence + Gemini credentials
-python scripts/seed_confluence.py      # idempotent: creates space + 7 pages
+python scripts/seed_confluence.py      # idempotent: creates the space + page tree (8 labeled pages, unlabeled nav pages)
 python -m src.agent_loop               # real end-to-end demo
 ```
 

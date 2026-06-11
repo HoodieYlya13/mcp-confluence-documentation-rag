@@ -28,7 +28,7 @@ Per-page ACLs are currently encoded as Confluence labels (`acl-junior-op`, `acl-
 | 2 | Context Verifier (LangGraph node) | `verify` node before generation | Restricted chunks reaching the LLM via any retrieval bug or injection |
 | 3 | Post-generation leak scan | `generate` node after the LLM call | Register addresses in the answer that are absent from the authorized context (leak or hallucination) |
 
-Ingestion adds a fifth, earlier gate: pages without a recognized ACL label are **never indexed** (validated in production — the auto-created Confluence space homepage carries no labels and is excluded on every sync).
+Ingestion adds a fifth, earlier gate: pages without a recognized ACL label are **never indexed** (validated in production — the space homepage and the navigation-only section pages carry no labels and are excluded on every sync).
 
 ## Threat Model
 

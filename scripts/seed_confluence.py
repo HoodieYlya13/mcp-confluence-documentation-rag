@@ -18,8 +18,79 @@ SPACE_NAME = "ATS Operations"
 ACL_JUNIOR = "acl-junior-op"
 ACL_LEAD = "acl-ats-core-lead"
 
+TOC_MACRO = '<ac:structured-macro ac:name="toc" ac:schema-version="1" />'
+CHILDREN_MACRO = '<ac:structured-macro ac:name="children" ac:schema-version="2" />'
+
+
+def status_lozenge(colour: str, title: str) -> str:
+    return (
+        '<ac:structured-macro ac:name="status" ac:schema-version="1">'
+        f'<ac:parameter ac:name="colour">{colour}</ac:parameter>'
+        f'<ac:parameter ac:name="title">{title}</ac:parameter>'
+        "</ac:structured-macro>"
+    )
+
+
+HOMEPAGE_BODY = f"""
+<ac:structured-macro ac:name="panel">
+  <ac:parameter ac:name="title">ATS Operations</ac:parameter>
+  <ac:rich-text-body>
+    <p>Operational documentation for the accelerator complex: operating procedures, diagnostics and maintenance references, and machine-protection data. This space is the source of record for the AI documentation assistant — what each role can read here is exactly what the assistant will serve it.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+
+<h2>Access control</h2>
+<p>Every content page carries ACL labels that the documentation assistant maps to roles:</p>
+<table>
+  <thead>
+    <tr><th>Label</th><th>Grants access to</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>acl-junior-op</code></td><td>{status_lozenge("Yellow", "JUNIOR_OP")}</td></tr>
+    <tr><td><code>acl-ats-core-lead</code></td><td>{status_lozenge("Green", "ATS_CORE_LEAD")}</td></tr>
+  </tbody>
+</table>
+
+<ac:structured-macro ac:name="note">
+  <ac:rich-text-body>
+    <p>This homepage and the section index pages carry <strong>no ACL labels on purpose</strong>: the assistant indexes only pages with a recognized label and fails closed on everything else — including this page.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+
+<h2>Sections</h2>
+{CHILDREN_MACRO}
+"""
+
+SECTION_BODIES: Dict[str, str] = {
+    "section_sops": f"""
+<ac:structured-macro ac:name="info">
+  <ac:rich-text-body>
+    <p>Validated operating procedures for routine machine operations. The Confluence page is the controlled version — printed or copied versions are uncontrolled.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+{CHILDREN_MACRO}
+""",
+    "section_maintenance": f"""
+<ac:structured-macro ac:name="note">
+  <ac:rich-text-body>
+    <p>Diagnostics references, maintenance logs and shift notes. Pages here are living documents — check the last-modified date before acting on a value.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+{CHILDREN_MACRO}
+""",
+    "section_restricted": f"""
+<ac:structured-macro ac:name="warning">
+  <ac:parameter ac:name="title">Machine Protection — Restricted</ac:parameter>
+  <ac:rich-text-body>
+    <p>Pages in this section carry the <code>acl-ats-core-lead</code> label only and are served exclusively to ATS Core Lead personnel by the documentation assistant.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+{CHILDREN_MACRO}
+""",
+}
+
 NEW_PAGE_BODIES: Dict[str, str] = {
-    "sector4_magnet_shutdown": """
+    "sector4_magnet_shutdown": f"""
 <ac:structured-macro ac:name="info">
   <ac:parameter ac:name="title">Sector 4 Injection Magnet Shutdown</ac:parameter>
   <ac:rich-text-body>
@@ -31,6 +102,8 @@ NEW_PAGE_BODIES: Dict[str, str] = {
     </ac:structured-macro>
   </ac:rich-text-body>
 </ac:structured-macro>
+
+{TOC_MACRO}
 
 <h1>Sector 4 Injection Magnet Shutdown Procedure</h1>
 <p>This procedure applies to the main injection dipole and quadrupole circuits feeding LHC Point 4 transfer lines. Execute only with CCC shift leader authorisation.</p>
@@ -86,14 +159,22 @@ NEW_PAGE_BODIES: Dict[str, str] = {
   <li>Open the 13kA disconnectors and apply lock-out/tag-out (LOTO) on the powering subsector.</li>
   <li>Record the residual magnetic field measurement from the hall probes in the e-logbook.</li>
 </ol>
+
+<ac:structured-macro ac:name="tip">
+  <ac:rich-text-body>
+    <p>After LOTO, photograph the disconnector state and attach it to the e-logbook entry — it saves the next shift a trip down.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
 """,
-    "psb_rf_cavity_maintenance": """
+    "psb_rf_cavity_maintenance": f"""
 <ac:structured-macro ac:name="note">
   <ac:parameter ac:name="title">PSB RF Maintenance Reference</ac:parameter>
   <ac:rich-text-body>
     <p>Cavity status reference and scheduled interventions for the PS Booster Finemet RF systems, rings 1-4.</p>
   </ac:rich-text-body>
 </ac:structured-macro>
+
+{TOC_MACRO}
 
 <h1>PS Booster RF Cavity Maintenance Log</h1>
 <p>The PSB wideband Finemet cavities operate across the full 1-18 MHz range. Each ring carries identical cavity assemblies; gap relay states and amplifier health are tracked per ring.</p>
@@ -113,28 +194,28 @@ NEW_PAGE_BODIES: Dict[str, str] = {
     <tr>
       <td>1</td>
       <td>C02-R1</td>
-      <td>OPERATIONAL</td>
+      <td>{status_lozenge("Green", "OPERATIONAL")}</td>
       <td>8.0</td>
       <td>2026-03-14</td>
     </tr>
     <tr>
       <td>2</td>
       <td>C02-R2</td>
-      <td>OPERATIONAL</td>
+      <td>{status_lozenge("Green", "OPERATIONAL")}</td>
       <td>8.0</td>
       <td>2026-03-14</td>
     </tr>
     <tr>
       <td>3</td>
       <td>C02-R3</td>
-      <td>DEGRADED</td>
+      <td>{status_lozenge("Yellow", "DEGRADED")}</td>
       <td>6.5</td>
       <td>2026-05-02</td>
     </tr>
     <tr>
       <td>4</td>
       <td>C02-R4</td>
-      <td>OPERATIONAL</td>
+      <td>{status_lozenge("Green", "OPERATIONAL")}</td>
       <td>8.0</td>
       <td>2026-01-22</td>
     </tr>
@@ -173,13 +254,15 @@ NEW_PAGE_BODIES: Dict[str, str] = {
   <li>If a second amplifier module fails on the same cavity, declare the ring unavailable and notify the PSB operations supervisor.</li>
 </ul>
 """,
-    "lhc_collimator_offsets": """
+    "lhc_collimator_offsets": f"""
 <ac:structured-macro ac:name="warning">
   <ac:parameter ac:name="title">RESTRICTED MACHINE PROTECTION DATA</ac:parameter>
   <ac:rich-text-body>
     <p><strong>ACCESS RESTRICTION:</strong> Collimator jaw alignment offsets are machine-protection critical. Modification or disclosure outside the ATS Core Team is prohibited. Incorrect settings can expose superconducting magnets to uncontrolled beam loss.</p>
   </ac:rich-text-body>
 </ac:structured-macro>
+
+{TOC_MACRO}
 
 <h1>LHC Collimator Alignment Offsets - Betatron Cleaning Insertion</h1>
 <p>Measured beam-based alignment offsets for the primary and secondary collimators in IR7. Values are referenced to the closed orbit at 6.8 TeV with nominal optics.</p>
@@ -259,38 +342,109 @@ NEW_PAGE_BODIES: Dict[str, str] = {
 <h2>Q: How often is the documentation index refreshed?</h2>
 <p>The knowledge index synchronises with Confluence nightly. Pages updated during the day are picked up at the next scheduled sync.</p>
 """,
+    "ccc_shift_handover": """
+<p>quick notes from the week, to be cleaned up later (TODO)</p>
+
+<h2>Mon 08/06</h2>
+<ul>
+  <li>06:12 cooling tower CT-3 flow oscillating again, called TI, known issue since friday apparently</li>
+  <li>BLM crate BA2 fan replaced (spare taken from rack 14)</li>
+  <li>access door YEA01.SR7 badge reader intermittent -&gt; ticket INC-448812</li>
+</ul>
+
+<h2>Tue 09/06</h2>
+<p>nothing special. e-logbook entry 184411 has the SPS supercycle change details.</p>
+
+<h2>Wed 10/06</h2>
+<ul>
+  <li>POPS-B tripped 14:02, auto-recovered, EPC notified</li>
+  <li>UPS test in CCR postponed to next week</li>
+</ul>
+
+<table>
+  <tbody>
+    <tr>
+      <th>follow-up</th>
+      <th>owner</th>
+      <th>status</th>
+    </tr>
+    <tr>
+      <td>CT-3 flow oscillation</td>
+      <td>TI / cooling</td>
+      <td>open</td>
+    </tr>
+    <tr>
+      <td>badge reader YEA01.SR7</td>
+      <td></td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>REMINDER: DO NOT restart the FEC in BA2 without calling BI piquet first!!</strong></p>
+""",
 }
+
+SECTION_SOPS = "📘 Standard Operating Procedures"
+SECTION_MAINTENANCE = "🛠️ Maintenance & Diagnostics"
+SECTION_RESTRICTED = "🔒 Machine Protection — Restricted"
 
 PAGES: List[Dict[str, object]] = [
     {
-        "title": "LHC Cryo-Vacuum Troubleshooting and Interlock Thresholds",
-        "source_file": "lhc_cryo_troubleshooting.html",
-        "labels": [ACL_JUNIOR, ACL_LEAD],
+        "title": SECTION_SOPS,
+        "body_key": "section_sops",
+        "labels": [],
+    },
+    {
+        "title": SECTION_MAINTENANCE,
+        "body_key": "section_maintenance",
+        "labels": [],
+    },
+    {
+        "title": SECTION_RESTRICTED,
+        "body_key": "section_restricted",
+        "labels": [],
     },
     {
         "title": "Linac4 H- Ion Beam Injection Sequence SOP",
         "source_file": "linac4_injection_sop.html",
         "labels": [ACL_JUNIOR, ACL_LEAD],
-    },
-    {
-        "title": "SPS Beam Instrumentation VME Crate and Register Configurations",
-        "source_file": "sps_beam_instrumentation.html",
-        "labels": [ACL_LEAD],
+        "parent": SECTION_SOPS,
     },
     {
         "title": "Sector 4 Injection Magnet Shutdown Procedure",
         "body_key": "sector4_magnet_shutdown",
         "labels": [ACL_JUNIOR, ACL_LEAD],
+        "parent": SECTION_SOPS,
+    },
+    {
+        "title": "LHC Cryo-Vacuum Troubleshooting and Interlock Thresholds",
+        "source_file": "lhc_cryo_troubleshooting.html",
+        "labels": [ACL_JUNIOR, ACL_LEAD],
+        "parent": SECTION_MAINTENANCE,
     },
     {
         "title": "PS Booster RF Cavity Maintenance Log",
         "body_key": "psb_rf_cavity_maintenance",
         "labels": [ACL_JUNIOR, ACL_LEAD],
+        "parent": SECTION_MAINTENANCE,
+    },
+    {
+        "title": "CCC Shift Handover Notes — Week 24",
+        "body_key": "ccc_shift_handover",
+        "labels": [ACL_JUNIOR, ACL_LEAD],
+        "parent": SECTION_MAINTENANCE,
+    },
+    {
+        "title": "SPS Beam Instrumentation VME Crate and Register Configurations",
+        "source_file": "sps_beam_instrumentation.html",
+        "labels": [ACL_LEAD],
+        "parent": SECTION_RESTRICTED,
     },
     {
         "title": "LHC Collimator Alignment Offsets - Betatron Cleaning Insertion",
         "body_key": "lhc_collimator_offsets",
         "labels": [ACL_LEAD],
+        "parent": SECTION_RESTRICTED,
     },
     {
         "title": "Accelerator Operations FAQ",
@@ -316,7 +470,8 @@ def load_mock_body(filename: str) -> str:
     path = os.path.join(MOCK_DIR, filename)
     with open(path, encoding="utf-8") as f:
         raw = f.read()
-    return re.sub(r"<!--.*?-->", "", raw, count=1, flags=re.DOTALL).strip()
+    body = re.sub(r"<!--.*?-->", "", raw, count=1, flags=re.DOTALL).strip()
+    return TOC_MACRO + body
 
 
 class ConfluenceSeeder:
@@ -350,6 +505,27 @@ class ConfluenceSeeder:
         resp.raise_for_status()
         logger.info(f"Created space {SPACE_KEY} ({SPACE_NAME}).")
 
+    def homepage_id(self) -> str | None:
+        resp = self.client.get(f"/space/{SPACE_KEY}", params={"expand": "homepage"})
+        resp.raise_for_status()
+        homepage = resp.json().get("homepage")
+        return str(homepage["id"]) if homepage else None
+
+    def update_homepage(self, page_id: str, storage_body: str) -> None:
+        resp = self.client.get(f"/content/{page_id}", params={"expand": "version"})
+        resp.raise_for_status()
+        page = resp.json()
+        payload = {
+            "type": "page",
+            "title": page["title"],
+            "space": {"key": SPACE_KEY},
+            "version": {"number": page["version"]["number"] + 1},
+            "body": {"storage": {"value": storage_body, "representation": "storage"}},
+        }
+        resp = self.client.put(f"/content/{page_id}", json=payload)
+        resp.raise_for_status()
+        logger.info(f"Updated homepage '{page['title']}' (id={page_id}, no labels — fails closed).")
+
     def find_page(self, title: str) -> Dict[str, object] | None:
         resp = self.client.get(
             "/content",
@@ -359,7 +535,9 @@ class ConfluenceSeeder:
         results = resp.json().get("results", [])
         return results[0] if results else None
 
-    def upsert_page(self, title: str, storage_body: str, labels: List[str]) -> str:
+    def upsert_page(
+        self, title: str, storage_body: str, labels: List[str], parent_id: str | None = None
+    ) -> str:
         existing = self.find_page(title)
         payload = {
             "type": "page",
@@ -367,6 +545,8 @@ class ConfluenceSeeder:
             "space": {"key": SPACE_KEY},
             "body": {"storage": {"value": storage_body, "representation": "storage"}},
         }
+        if parent_id:
+            payload["ancestors"] = [{"id": parent_id}]
 
         if existing:
             page_id = str(existing["id"])
@@ -381,9 +561,10 @@ class ConfluenceSeeder:
             page_id = str(resp.json()["id"])
             action = "Created"
 
-        label_payload = [{"prefix": "global", "name": label} for label in labels]
-        resp = self.client.post(f"/content/{page_id}/label", json=label_payload)
-        resp.raise_for_status()
+        if labels:
+            label_payload = [{"prefix": "global", "name": label} for label in labels]
+            resp = self.client.post(f"/content/{page_id}/label", json=label_payload)
+            resp.raise_for_status()
 
         logger.info(f"{action}: '{title}' (id={page_id}, labels={labels})")
         return page_id
@@ -405,12 +586,24 @@ def main() -> int:
     seeder = ConfluenceSeeder(url, email, token)
     try:
         seeder.ensure_space()
+
+        home_id = seeder.homepage_id()
+        if home_id:
+            seeder.update_homepage(home_id, HOMEPAGE_BODY)
+        else:
+            logger.warning("No space homepage found; page tree will be rooted at space level.")
+
+        page_ids: Dict[str, str] = {}
         for page in PAGES:
+            title = str(page["title"])
             if "source_file" in page:
                 body = load_mock_body(str(page["source_file"]))
             else:
-                body = NEW_PAGE_BODIES[str(page["body_key"])]
-            seeder.upsert_page(str(page["title"]), body, list(page["labels"]))
+                key = str(page["body_key"])
+                body = SECTION_BODIES.get(key) or NEW_PAGE_BODIES[key]
+            parent_title = page.get("parent")
+            parent_id = page_ids.get(str(parent_title)) if parent_title else home_id
+            page_ids[title] = seeder.upsert_page(title, body, list(page["labels"]), parent_id)
     except httpx.HTTPStatusError as exc:
         logger.error(f"Confluence API error {exc.response.status_code}: {exc.response.text[:500]}")
         return 1

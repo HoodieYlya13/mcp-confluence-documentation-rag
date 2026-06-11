@@ -272,7 +272,7 @@ Live deployment: Hugging Face Docker Space, MCP streamable HTTP at `/mcp`, publi
 
 **ACL via page labels, not page restrictions.** Confluence Cloud Free does not support page restrictions (Standard-plan feature). ACLs are therefore encoded as labels (`acl-junior-op`, `acl-ats-core-lead`) and mapped to roles through a config dictionary. The production swap at CERN replaces the label reader with `expand=restrictions.read.restrictions` + SSO group mapping — the adapter seam is identical. The label→role map lives in `Settings`, not code.
 
-**Fail closed.** A page with no recognized ACL label is skipped and logged as a security event — never indexed. This was validated in production by accident: Confluence auto-creates a space homepage with no labels, and the connector correctly excluded it (`pages_skipped_no_acl: 1` in every live sync report).
+**Fail closed.** A page with no recognized ACL label is skipped and logged as a security event — never indexed. This was first validated in production by accident: Confluence auto-creates a space homepage with no labels, and the connector correctly excluded it. The seeded space now leans into that behavior — the homepage and the section index pages are deliberately left unlabeled, so every live sync report shows the gate working (`pages_skipped_no_acl: 4`).
 
 **Incremental sync.** The connector caches `(version.number, ParsedDocument)` per page id and re-parses only pages whose version changed. The live sync report (`pages_checked / changed / unchanged / skipped_no_acl / parse_errors`) is structured-logged and returned by `/admin/sync`.
 
@@ -358,6 +358,8 @@ Leak detection matches **restricted content markers** (register addresses, offse
 **Space provisioning is code** (`scripts/deploy_hf_space.py`): creates the Docker Space, sets secrets (Confluence credentials, Gemini key, token registry) and non-secret variables (backend selection), uploads exactly the allow-listed files, and writes the Space README with HF front-matter. Re-runnable; the Space is reproducible from scratch.
 
 **Confluence seeding is code** (`scripts/seed_confluence.py`): idempotent upserts (version bump on re-run), ACL labels applied per page, hard parsing cases (nested macros, multi-table pages) and the injection fixture included by design.
+
+The space is seeded as a page tree — three section index pages under the homepage (SOPs, Maintenance & Diagnostics, Machine Protection) — so it reads like a real operations space in the Confluence sidebar. The homepage and section indexes deliberately carry **no ACL labels**: they are pure navigation, and the fail-closed gate excludes them on every sync, which keeps the index free of low-content pages that could dilute top-k retrieval. The homepage documents the label→role convention while being itself un-indexed. Aesthetic choices double as parser fixtures: status lozenges inside table cells must survive sanitization as bracketed text (`[OPERATIONAL]`), `toc` and `children` macros must vanish from the markdown entirely, and a deliberately messy shift-handover page (raw bullet notes, a headerless table with ragged rows) exercises the table normalizer against genuinely unstructured content — the corpus stays believable rather than uniformly polished.
 
 ## 18. Production Decision Log
 
