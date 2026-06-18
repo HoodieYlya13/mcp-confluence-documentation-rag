@@ -222,6 +222,45 @@ def semantic_search_accelerator(query: str, top_k: int = 3) -> List[Dict[str, An
     return serialized_results
 
 
+_AGENT = None
+
+
+def _get_agent():
+    global _AGENT
+    if _AGENT is None:
+        from src.agent_loop import OperationalAgentSubstrate
+
+        _AGENT = OperationalAgentSubstrate()
+    return _AGENT
+
+
+@mcp.tool()
+@_instrumented("ask_accelerator_operations")
+def ask_accelerator_operations(question: str) -> str:
+    """Answers a natural-language operations question with a single grounded, RBAC-safe response.
+
+    Unlike semantic_search_accelerator, which returns raw chunks for the caller
+    to reason over, this runs the full agentic pipeline server-side: RBAC-filtered
+    retrieval, a context-verification gate, grounded generation, and a
+    post-generation leak scan. The caller's role is derived server-side from the
+    authenticated identity and is never supplied by the client.
+
+    Args:
+        question: The operational question to answer.
+
+    Returns:
+        A synthesized answer grounded only in documents the authenticated role
+        is authorized to access, or a refusal if the question targets restricted
+        material.
+    """
+    user_role = _authenticated_role()
+    logger.info(
+        "MCP Tool Executed: ask_accelerator_operations",
+        extra={"question": question, "user_role": user_role},
+    )
+    return _get_agent().answer(query=question, role=user_role)
+
+
 class BearerTokenAuthMiddleware:
 
     PUBLIC_PATHS = ("/health", "/metrics")

@@ -249,15 +249,19 @@ ParsedDocument[]  (doc_id = Confluence page id, title in metadata)
     │
     ▼ initialize_substrate()  [startup + daily scheduler + /admin/sync]
     │
-    ├─ MCP tools (identity from bearer token, never from client input)
+    │  (identity from bearer token, never from client input)
+    │
+    ├─ Retrieval tools — client does its own reasoning (layers 1–2)
     │     list_available_pages() · fetch_and_sanitize_page(page_id)
     │     semantic_search_accelerator(query, top_k)
     │
-    ▼ LangGraph StateGraph                              [agent_loop.py]
-      router → retrieve → integrate → verify ⇒ generate | refuse
-                                        │
-                                        ▼ Gemini (tiered) / Ollama / stub
-                              post-generation leak scan (Layer 3)
+    └─ ask_accelerator_operations(question) — server reasons (layers 1–4)
+          │
+          ▼ LangGraph StateGraph                        [agent_loop.py]
+            router → retrieve → integrate → verify ⇒ generate | refuse
+                                              │
+                                              ▼ Gemini (tiered) / Ollama / stub
+                                    post-generation leak scan
 ```
 
 Live deployment: Hugging Face Docker Space, MCP streamable HTTP at `/mcp`, public `/health` and `/metrics`, lead-only `POST /admin/sync`.
@@ -307,6 +311,8 @@ Live deployment: Hugging Face Docker Space, MCP streamable HTTP at `/mcp`, publi
 **Layer 3 — post-generation leak scan.** Any hex register token (`0x…`) in the generated answer that does not appear in the authorized context blocks the response. Catches both leakage and hallucinated register addresses.
 
 **`AGENT_RETRIEVAL_TOP_K = 5`.** With 31 chunks across 7 documents, top-3 left the threshold *table* chunk at rank 4 behind three prose chunks (number-dense tables embed worse against natural-language questions than prose does); Gemini then truthfully answered "not in context". Retrieval depth 5 closes that gap at negligible cost.
+
+**Two deployment modes from one server — the agent sits behind an `ask` tool.** The graph is *not* on the request path for a capable MCP client: Claude Desktop / Claude Code call the raw retrieval tools and run their own reasoning loop, so only layers 1–2 (token→role, ACL pushdown) execute — layers 3–4 (verify node, leak scan) live inside the graph and would never fire. To make the agent a genuine, enforced deployment pattern for *thin or untrusted* clients (a web form, a Jira webhook, a weak local model), it is exposed as a fourth MCP tool, `ask_accelerator_operations(question)` in `server.py`: the server runs the whole pipeline and returns one grounded, leak-scanned answer. Design seams: (1) the tool resolves the role via `_authenticated_role()` (bearer token), so the agent's `answer(query, role)` entry takes the role from the token rather than the demo's `USER_SESSIONS` username lookup; (2) the agent is imported lazily inside `_get_agent()` because `agent_loop` imports `semantic_search_accelerator` from `server` — a top-level import either way would be circular. The same RBAC holds in both modes; `ask` adds the server-side generation guardrails. The natural next milestone (documented, not built — "generic, not gold-plated") is an agentic loop on enforced rails: a conditional edge `generate → retrieve` for multi-step questions, where every iteration still passes the ACL filter and the verify gate, so the model can iterate but cannot iterate around the ACL.
 
 ## 13. Identity & Auth (`auth.py`, middleware in `server.py`)
 

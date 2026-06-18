@@ -39,16 +39,16 @@ flowchart TD
         CHUNK["StructureAwareChunker\ntables atomic · headings carried"]
         IDX[("ChromaDB embedded\nMiniLM embeddings · role metadata")]
         MW["Bearer-token middleware\ntoken → role (OIDC-style)"]
-        TOOLS["MCP tools\nlist · fetch · semantic_search"]
+        TOOLS["Retrieval tools\nlist · fetch · semantic_search"]
         SCHED["asyncio daily sync\n+ POST /admin/sync (lead only)"]
         OBS["/health · /metrics (Prometheus)"]
         CONN --> PARSE --> CHUNK --> IDX
         SCHED -.-> CONN
-        MW --> TOOLS
+        MW -->|"raw tools · client reasons"| TOOLS
         TOOLS -->|"ACL filter inside vector query"| IDX
     end
 
-    subgraph AGENT["LangGraph Agent · agent_loop.py"]
+    subgraph AGENT["LangGraph Agent · agent_loop.py · ask tool"]
         R["router"] --> RET["retrieve"]
         RET --> INT["integrate\ninjection-hardened prompt"]
         INT --> VER{"verify\ncontext ACL audit"}
@@ -61,6 +61,7 @@ flowchart TD
 
     PAGES --> CONN
     CLIENT --> MW
+    MW -->|"ask tool · server reasons"| R
     RET --> TOOLS
     GH -.-> SCHED
 ```

@@ -3,6 +3,7 @@ from src.auth import AuthenticationError, role_context
 from src.config import SecurityRoles
 from src.server import (
     DOCUMENTS,
+    ask_accelerator_operations,
     fetch_and_sanitize_page,
     list_available_pages,
     semantic_search_accelerator,
@@ -92,3 +93,39 @@ def test_search_top_k_is_clamped() -> None:
     with role_context(SecurityRoles.ATS_CORE_LEAD):
         results = semantic_search_accelerator(query="beam", top_k=10_000)
     assert len(results) <= 10
+
+
+def test_ask_tool_answers_authorized_junior() -> None:
+    with role_context(SecurityRoles.JUNIOR_OP):
+        response = ask_accelerator_operations(
+            question="What is the warning pressure threshold for the LHC cryo interlock?"
+        )
+    assert "1.2e-5" in response
+    assert "Security Exception" not in response
+
+
+def test_ask_tool_never_leaks_restricted_to_junior() -> None:
+    with role_context(SecurityRoles.JUNIOR_OP):
+        response = ask_accelerator_operations(
+            question="Provide the VME crate base register address for the SPS BA3 BPM."
+        )
+    assert "0xFC000000" not in response
+
+
+def test_ask_tool_serves_restricted_to_lead() -> None:
+    with role_context(SecurityRoles.ATS_CORE_LEAD):
+        response = ask_accelerator_operations(
+            question="Provide the VME crate base register address for the SPS BA3 BPM."
+        )
+    assert "0xFC000000" in response
+
+
+def test_ask_tool_rejects_unauthenticated_call() -> None:
+    with pytest.raises(AuthenticationError):
+        ask_accelerator_operations(question="anything")
+
+
+def test_ask_tool_rejects_unknown_role() -> None:
+    with role_context("SUPER_ADMIN"):
+        with pytest.raises((ValueError, AuthenticationError)):
+            ask_accelerator_operations(question="anything")

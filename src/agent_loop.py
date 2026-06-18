@@ -124,6 +124,23 @@ class OperationalAgentSubstrate:
         )
         return final_state["response"]
 
+    def answer(self, query: str, role: str) -> str:
+        self.logger.info(
+            "Token-authenticated agent turn. Starting graph execution.",
+            extra={"user_role": role, "query": query},
+        )
+        final_state: AgentState = self.graph.invoke(
+            AgentState(
+                query=query,
+                username=f"token:{role}",
+                user_role=role,
+                inject_leak=False,
+                retrieved_chunks=[],
+                refused=False,
+            )
+        )
+        return final_state["response"]
+
     def _node_router(self, state: AgentState) -> AgentState:
         is_greeting = self._is_greeting(state["query"])
         self.logger.info(
