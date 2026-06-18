@@ -245,6 +245,9 @@ class OperationalAgentSubstrate:
     @staticmethod
     def _format_source(chunk: Dict[str, Any]) -> str:
         header = f"[Source: {chunk['doc_id']} | Space: {chunk['space']}"
+        title = chunk.get("title", "")
+        if title:
+            header += f" | Title: {title}"
         url = chunk.get("url", "")
         if url:
             header += f" | URL: {url}"
@@ -254,14 +257,18 @@ class OperationalAgentSubstrate:
     @staticmethod
     def _build_sources_footer(chunks: List[Dict[str, Any]]) -> str:
         sources: Dict[str, str] = {}
+        labels: Dict[str, str] = {}
         for chunk in chunks:
             doc_id = chunk.get("doc_id", "")
             url = chunk.get("url", "")
             if doc_id and url and doc_id not in sources:
                 sources[doc_id] = url
+                labels[doc_id] = str(chunk.get("title") or doc_id)
         if not sources:
             return ""
-        listing = "\n".join(f"- [{doc_id}]({url})" for doc_id, url in sources.items())
+        listing = "\n".join(
+            f"- [{labels[doc_id]}]({url})" for doc_id, url in sources.items()
+        )
         return f"\n\n**Sources:**\n{listing}"
 
     def _is_greeting(self, query: str) -> bool:

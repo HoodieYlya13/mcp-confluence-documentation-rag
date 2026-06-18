@@ -82,6 +82,22 @@ def test_sources_footer_empty_without_urls() -> None:
     assert OperationalAgentSubstrate._build_sources_footer(chunks) == ""
 
 
+def test_sources_footer_uses_title_as_link_text() -> None:
+    """When a page title is present it becomes the human-readable link label."""
+    chunks = [
+        {"doc_id": "983042", "title": "LHC Cryo Guide", "url": "https://x/p/1", "text": "t"},
+    ]
+    footer = OperationalAgentSubstrate._build_sources_footer(chunks)
+    assert footer == "\n\n**Sources:**\n- [LHC Cryo Guide](https://x/p/1)"
+
+
+def test_sources_footer_falls_back_to_doc_id_without_title() -> None:
+    """A chunk with a URL but no title still links, labelled by its id."""
+    chunks = [{"doc_id": "983042", "url": "https://x/p/1", "text": "t"}]
+    footer = OperationalAgentSubstrate._build_sources_footer(chunks)
+    assert footer == "\n\n**Sources:**\n- [983042](https://x/p/1)"
+
+
 def test_context_header_includes_url_when_present() -> None:
     """The URL is woven into the context so any citation is grounded for the judge."""
     chunk = {"doc_id": "a", "space": "S", "url": "https://x/p/1", "similarity_score": 0.5, "text": "body"}
@@ -89,3 +105,16 @@ def test_context_header_includes_url_when_present() -> None:
     assert "URL: https://x/p/1" in header
     chunk_no_url = {"doc_id": "a", "space": "S", "url": "", "similarity_score": 0.5, "text": "body"}
     assert "URL:" not in OperationalAgentSubstrate._format_source(chunk_no_url)
+
+
+def test_context_header_includes_title_when_present() -> None:
+    """The page title is woven into the context so a title citation is grounded."""
+    chunk = {
+        "doc_id": "983042",
+        "space": "S",
+        "title": "Cryo Guide",
+        "url": "https://x/p/1",
+        "similarity_score": 0.5,
+        "text": "body",
+    }
+    assert "Title: Cryo Guide" in OperationalAgentSubstrate._format_source(chunk)

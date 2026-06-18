@@ -213,6 +213,7 @@ def semantic_search_accelerator(query: str, top_k: int = 3) -> List[Dict[str, An
     for chunk, score in matches:
         serialized_results.append({
             "doc_id": chunk.doc_id,
+            "title": chunk.title,
             "space": chunk.space,
             "url": chunk.source_url,
             "chunk_index": chunk.chunk_index,
@@ -371,6 +372,7 @@ def build_http_app():
         for chunk in INDEX.chunks:
             chunks_data.append({
                 "doc_id": chunk.doc_id,
+                "title": chunk.title,
                 "space": chunk.space,
                 "url": chunk.source_url,
                 "allowed_roles": chunk.allowed_roles,

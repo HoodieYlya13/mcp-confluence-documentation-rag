@@ -17,6 +17,7 @@ class DocumentChunk:
     text: str
     chunk_index: int
     source_url: str = ""
+    title: str = ""
 
 
 class LocalVectorIndex:
@@ -63,7 +64,8 @@ class LocalVectorIndex:
                     last_modified=doc.last_modified,
                     text=chunk_text,
                     chunk_index=chunk_idx,
-                    source_url=doc.source_url
+                    source_url=doc.source_url,
+                    title=str(doc.metadata.get("title", ""))
                 )
             )
 

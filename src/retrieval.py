@@ -46,6 +46,7 @@ class StructureAwareChunker:
                         text=text,
                         chunk_index=len(chunks),
                         source_url=doc.source_url,
+                        title=str(doc.metadata.get("title", "")),
                     )
                 )
             current_parts = []
@@ -247,6 +248,7 @@ class SemanticVectorIndex:
                 text=node_with_score.node.get_content(),
                 chunk_index=int(metadata.get("chunk_index", 0)),
                 source_url=str(metadata.get("source_url", "")),
+                title=str(metadata.get("title", "")),
             )
             score = float(node_with_score.score or 0.0)
             results.append((chunk, score))
