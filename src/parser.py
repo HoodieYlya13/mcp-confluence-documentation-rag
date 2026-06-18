@@ -15,6 +15,7 @@ class ParsedDocument:
     allowed_roles: List[str]
     last_modified: str
     clean_content: str
+    source_url: str = ""
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -70,6 +71,7 @@ class ConfluenceSanitizationEngine:
             allowed_roles=allowed_roles,
             last_modified=last_modified,
             clean_content=clean_markdown,
+            source_url=str(metadata.get("source_url", "")),
             metadata=metadata
         )
 

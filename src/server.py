@@ -129,6 +129,7 @@ def list_available_pages() -> List[Dict[str, Any]]:
                 "doc_id": doc.doc_id,
                 "title": doc.metadata.get("title", doc.doc_id),
                 "space": doc.space,
+                "url": doc.source_url,
                 "allowed_roles": doc.allowed_roles,
                 "last_modified": doc.last_modified
             })
@@ -213,6 +214,7 @@ def semantic_search_accelerator(query: str, top_k: int = 3) -> List[Dict[str, An
         serialized_results.append({
             "doc_id": chunk.doc_id,
             "space": chunk.space,
+            "url": chunk.source_url,
             "chunk_index": chunk.chunk_index,
             "allowed_roles": chunk.allowed_roles,
             "text": chunk.text,
@@ -370,6 +372,7 @@ def build_http_app():
             chunks_data.append({
                 "doc_id": chunk.doc_id,
                 "space": chunk.space,
+                "url": chunk.source_url,
                 "allowed_roles": chunk.allowed_roles,
                 "last_modified": chunk.last_modified,
                 "text": chunk.text,

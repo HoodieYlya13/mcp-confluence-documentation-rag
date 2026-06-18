@@ -53,6 +53,33 @@ def test_pages_with_acl_labels_are_ingested():
     assert "# Cryo Guide" in docs[0].clean_content
 
 
+def test_source_url_prefers_webui_link():
+    page = make_page("100", "Cryo Guide", ["acl-junior-op"])
+    page["_links"] = {"webui": "/spaces/ATSOPS/pages/100/Cryo+Guide"}
+    source = ConfluenceAPISource(
+        make_settings(), transport=transport_for_pages([page]), retry_backoff_seconds=0
+    )
+
+    docs = source.fetch_documents()
+
+    assert docs[0].source_url == (
+        "https://test.atlassian.net/wiki/spaces/ATSOPS/pages/100/Cryo+Guide"
+    )
+
+
+def test_source_url_falls_back_when_link_absent():
+    page = make_page("200", "SOP", ["acl-junior-op"])
+    source = ConfluenceAPISource(
+        make_settings(), transport=transport_for_pages([page]), retry_backoff_seconds=0
+    )
+
+    docs = source.fetch_documents()
+
+    assert docs[0].source_url == (
+        "https://test.atlassian.net/wiki/spaces/ATSOPS/pages/200"
+    )
+
+
 def test_pages_without_acl_labels_fail_closed():
     pages = [
         make_page("100", "Labeled", ["acl-junior-op"]),

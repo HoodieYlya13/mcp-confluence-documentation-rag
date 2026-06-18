@@ -45,6 +45,7 @@ class StructureAwareChunker:
                         last_modified=doc.last_modified,
                         text=text,
                         chunk_index=len(chunks),
+                        source_url=doc.source_url,
                     )
                 )
             current_parts = []
@@ -163,6 +164,7 @@ class SemanticVectorIndex:
                     "doc_id": chunk.doc_id,
                     "space": chunk.space,
                     "title": title,
+                    "source_url": chunk.source_url,
                     "last_modified": chunk.last_modified,
                     "chunk_index": chunk.chunk_index,
                     "allowed_roles": ",".join(chunk.allowed_roles),
@@ -244,6 +246,7 @@ class SemanticVectorIndex:
                 last_modified=str(metadata.get("last_modified", "")),
                 text=node_with_score.node.get_content(),
                 chunk_index=int(metadata.get("chunk_index", 0)),
+                source_url=str(metadata.get("source_url", "")),
             )
             score = float(node_with_score.score or 0.0)
             results.append((chunk, score))

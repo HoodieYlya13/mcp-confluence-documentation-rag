@@ -130,6 +130,7 @@ class ConfluenceAPISource:
                 "last_modified": page["version"].get("when", ""),
                 "title": page.get("title", ""),
                 "version": version,
+                "source_url": self._page_url(page, page_id),
             }
             body_html = page["body"]["storage"]["value"]
             try:
@@ -150,6 +151,14 @@ class ConfluenceAPISource:
         self.last_report = report
         self.logger.info("Confluence sync completed.", extra=asdict(report))
         return documents
+
+    def _page_url(self, page: Dict[str, object], page_id: str) -> str:
+        wiki_base = f"{self.settings.confluence_url.rstrip('/')}/wiki"
+        links = page.get("_links")
+        web_path = links.get("webui", "") if isinstance(links, dict) else ""
+        if web_path:
+            return f"{wiki_base}{web_path}"
+        return f"{wiki_base}/spaces/{self.settings.confluence_space_key}/pages/{page_id}"
 
     def _iter_pages(self) -> Iterator[Dict[str, object]]:
         start = 0

@@ -282,6 +282,8 @@ Live deployment: Hugging Face Docker Space, MCP streamable HTTP at `/mcp`, publi
 
 **Resilience.** Exponential-backoff retries (3 attempts) on transport errors and 5xx; 4xx fails immediately (auth/config problems are not transient). If the source is unreachable at sync time, the server keeps serving the last-known-good index.
 
+**Source URL provenance.** Each page carries a `source_url` resolved at ingestion and threaded through `ParsedDocument → DocumentChunk → tool output` (both retrieval tools and the agent's answer cite it). It is taken from the API's `_links.webui` (the canonical slug URL) prefixed with `{confluence_url}/wiki`, falling back to the deterministic `…/wiki/spaces/{space}/pages/{id}` form when the link is absent — so the field is always populated for the live source and never depends on an optional API field. `LocalFileSource` leaves it empty (the mock corpus is air-gapped and has no real URLs); everything downstream treats an empty URL as "render no link", which is why the offline/CI profile produces byte-identical tool output and the eval gate is unaffected.
+
 ## 10. Semantic Retrieval (`retrieval.py`)
 
 **Framework strategy: LlamaIndex for plumbing, custom for security.** LlamaIndex provides `TextNode`, `VectorStoreIndex`, `HuggingFaceEmbedding` and the Chroma binding; the chunker and the ACL model are custom because no framework ships layered RBAC.
@@ -309,6 +311,8 @@ Live deployment: Hugging Face Docker Space, MCP streamable HTTP at `/mcp`, publi
 **Prompt-injection hardening.** Retrieved content is wrapped in `<<<CONTEXT>>>` delimiters and the system prompt declares it untrusted data whose instructions must never be followed. A seeded Confluence page permanently contains a "SYSTEM OVERRIDE" injection string as a regression fixture; live Gemini quotes it as data and does not obey it, even when the user explicitly asks it to follow embedded instructions.
 
 **Layer 3 — post-generation leak scan.** Any hex register token (`0x…`) in the generated answer that does not appear in the authorized context blocks the response. Catches both leakage and hallucinated register addresses.
+
+**Grounded source citations.** A successful generation gets a `**Sources:**` footer listing the unique pages actually retrieved, as Markdown links. To keep this faithful rather than a fabricated claim, the page URL is also injected into each context-block header (`[Source: … | URL: … | Score: …]`) — so the LLM-as-judge sees the URL in the context and the citation is grounded, not hallucinated. The footer is appended only on the success path: greetings, refusals, leak-blocks, the unavailable fallback, and the exact "no relevant documents" response (extracted to `NO_CONTEXT_RESPONSE` and reused by the prompt) are all skipped, so the refusal/no-context strings the tests and eval match on stay byte-exact. With the air-gapped local source the URLs are empty, so no footer is produced and offline output is unchanged.
 
 **`AGENT_RETRIEVAL_TOP_K = 5`.** With 31 chunks across 7 documents, top-3 left the threshold *table* chunk at rank 4 behind three prose chunks (number-dense tables embed worse against natural-language questions than prose does); Gemini then truthfully answered "not in context". Retrieval depth 5 closes that gap at negligible cost.
 

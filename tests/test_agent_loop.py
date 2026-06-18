@@ -63,3 +63,29 @@ def test_unregistered_session_rejected(agent: OperationalAgentSubstrate) -> None
     """Unknown usernames must be rejected before any retrieval happens."""
     response = agent.run_turn(query="anything", username="Mallory")
     assert "Security Exception" in response
+
+
+def test_sources_footer_lists_unique_pages_with_urls() -> None:
+    """The citation footer dedupes by page and only lists chunks that carry a URL."""
+    chunks = [
+        {"doc_id": "a", "url": "https://x/wiki/spaces/S/pages/1", "text": "t"},
+        {"doc_id": "a", "url": "https://x/wiki/spaces/S/pages/1", "text": "t2"},
+        {"doc_id": "b", "url": "", "text": "t3"},
+    ]
+    footer = OperationalAgentSubstrate._build_sources_footer(chunks)
+    assert footer == "\n\n**Sources:**\n- [a](https://x/wiki/spaces/S/pages/1)"
+
+
+def test_sources_footer_empty_without_urls() -> None:
+    """The air-gapped local source carries no URLs, so no footer is appended."""
+    chunks = [{"doc_id": "a", "url": "", "text": "t"}]
+    assert OperationalAgentSubstrate._build_sources_footer(chunks) == ""
+
+
+def test_context_header_includes_url_when_present() -> None:
+    """The URL is woven into the context so any citation is grounded for the judge."""
+    chunk = {"doc_id": "a", "space": "S", "url": "https://x/p/1", "similarity_score": 0.5, "text": "body"}
+    header = OperationalAgentSubstrate._format_source(chunk)
+    assert "URL: https://x/p/1" in header
+    chunk_no_url = {"doc_id": "a", "space": "S", "url": "", "similarity_score": 0.5, "text": "body"}
+    assert "URL:" not in OperationalAgentSubstrate._format_source(chunk_no_url)

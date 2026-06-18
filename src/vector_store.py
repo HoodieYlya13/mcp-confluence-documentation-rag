@@ -16,6 +16,7 @@ class DocumentChunk:
     last_modified: str
     text: str
     chunk_index: int
+    source_url: str = ""
 
 
 class LocalVectorIndex:
@@ -61,7 +62,8 @@ class LocalVectorIndex:
                     allowed_roles=list(doc.allowed_roles),
                     last_modified=doc.last_modified,
                     text=chunk_text,
-                    chunk_index=chunk_idx
+                    chunk_index=chunk_idx,
+                    source_url=doc.source_url
                 )
             )
 
