@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" alt="MCP Confluence Documentation RAG" width="96" height="96" />
+</p>
+
 # 🌌 MCP Confluence Documentation RAG — Accelerator Operations Substrate
 
 [![CI](https://img.shields.io/badge/CI-two--speed%20(push%20%2B%20nightly)-green)]()
