@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     stdio_role: str = ""
     sync_interval_hours: float = 24.0
 
+    sso_issuer: str = ""
+    sso_audience: str = ""
+    sso_jwks_url: str = ""
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

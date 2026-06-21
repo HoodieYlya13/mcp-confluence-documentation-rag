@@ -6,7 +6,12 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
 from src import metrics
-from src.auth import current_role, resolve_role_from_token, role_context
+from src.auth import (
+    current_role,
+    resolve_role_from_sso_token,
+    resolve_role_from_token,
+    role_context,
+)
 from src.config import KNOWN_ROLES, MOCK_CONFLUENCE_DIR, configure_logging
 from src.parser import ParsedDocument
 from src.retrieval import build_index
@@ -280,7 +285,11 @@ class BearerTokenAuthMiddleware:
         headers = {key: value for key, value in scope.get("headers", [])}
         auth_header = headers.get(b"authorization", b"").decode()
         token = auth_header.removeprefix("Bearer ").strip() if auth_header.startswith("Bearer ") else ""
-        role = resolve_role_from_token(token) if token else None
+        role = None
+        if token:
+            # Hardcoded AUTH_TOKENS are the primary path (demos); fall back to an
+            # OIDC access token from the identity provider (production Spotlight).
+            role = resolve_role_from_token(token) or resolve_role_from_sso_token(token)
 
         if role is None:
             metrics.inc("rbac_denials_total", {"layer": "http_auth"})

@@ -6,4 +6,5 @@ markdownify==0.13.1
 mcp==1.27.2
 numpy==2.2.3
 pydantic-settings==2.14.1
+pyjwt[crypto]==2.13.0
 pyyaml==6.0.3
