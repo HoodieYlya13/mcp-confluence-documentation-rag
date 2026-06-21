@@ -108,7 +108,12 @@ def main() -> int:
         api.add_space_secret(repo_id=repo_id, key=key, value=os.environ[key])
         logger.info(f"Secret set: {key}")
 
-    for key, value in SPACE_VARIABLES.items():
+    vars_to_set = dict(SPACE_VARIABLES)
+    for sso_key in ["SSO_ISSUER", "SSO_AUDIENCE", "SSO_JWKS_URL"]:
+        if os.environ.get(sso_key):
+            vars_to_set[sso_key] = os.environ[sso_key]
+
+    for key, value in vars_to_set.items():
         api.add_space_variable(repo_id=repo_id, key=key, value=value)
         logger.info(f"Variable set: {key}={value}")
 
