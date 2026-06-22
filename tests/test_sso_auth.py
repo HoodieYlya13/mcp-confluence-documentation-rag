@@ -4,7 +4,6 @@ import types
 import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
-
 from src.auth import map_sso_roles_to_role, resolve_role_from_sso_token
 from src.settings import Settings
 

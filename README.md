@@ -4,7 +4,7 @@
 
 # 🌌 MCP Confluence Documentation RAG — Accelerator Operations Substrate
 
-[![CI](https://img.shields.io/badge/CI-two--speed%20(push%20%2B%20nightly)-green)]()
+[![CI](<https://img.shields.io/badge/CI-two--speed%20(push%20%2B%20nightly)-green>)]()
 [![Live](https://img.shields.io/badge/Live-HF%20Spaces-yellow)](https://hoodieylya13-mcp-confluence-documentation-rag.hf.space/health)
 [![Model Context Protocol](https://img.shields.io/badge/Protocol-MCP%20streamable%20HTTP-orange)](https://modelcontextprotocol.io/)
 [![Security](https://img.shields.io/badge/Security-4--layer%20RBAC-red)](SECURITY.md)
@@ -18,14 +18,14 @@ A production-deployed, RBAC-enforced **Model Context Protocol server** exposing 
 
 ## What it demonstrates
 
-| Job requirement | Where |
-|---|---|
-| Secure knowledge connectors | [`src/sources.py`](src/sources.py) — Confluence REST connector: fail-closed ACL mapping, incremental version-diff sync, retries |
-| RAG pipelines, vector DBs, chunking & embeddings | [`src/retrieval.py`](src/retrieval.py) — LlamaIndex + ChromaDB, local sentence-transformers, structure-preserving chunking, **ACL filters pushed into the vector query** |
-| LLM frameworks (LlamaIndex / LangChain ecosystem) | LlamaIndex for the retrieval layer, **LangGraph** for the agent state machine |
-| Agentic AI + MCP | [`src/agent_loop.py`](src/agent_loop.py) LangGraph graph; [`src/server.py`](src/server.py) FastMCP over stdio *and* streamable HTTP |
-| Safety & evaluation frameworks | [`src/eval_suite.py`](src/eval_suite.py) — 8 gated scenarios: golden-set retrieval, adversarial probes, LLM-as-judge faithfulness, 0% leakage gate |
-| MLOps & CI/CD | Two-speed GitHub Actions, Trivy scan, nightly full-pipeline eval, self-healing nightly sync, Prometheus `/metrics` |
+| Job requirement                                   | Where                                                                                                                                                                    |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Secure knowledge connectors                       | [`src/sources.py`](src/sources.py) — Confluence REST connector: fail-closed ACL mapping, incremental version-diff sync, retries                                          |
+| RAG pipelines, vector DBs, chunking & embeddings  | [`src/retrieval.py`](src/retrieval.py) — LlamaIndex + ChromaDB, local sentence-transformers, structure-preserving chunking, **ACL filters pushed into the vector query** |
+| LLM frameworks (LlamaIndex / LangChain ecosystem) | LlamaIndex for the retrieval layer, **LangGraph** for the agent state machine                                                                                            |
+| Agentic AI + MCP                                  | [`src/agent_loop.py`](src/agent_loop.py) LangGraph graph; [`src/server.py`](src/server.py) FastMCP over stdio _and_ streamable HTTP                                      |
+| Safety & evaluation frameworks                    | [`src/eval_suite.py`](src/eval_suite.py) — 8 gated scenarios: golden-set retrieval, adversarial probes, LLM-as-judge faithfulness, 0% leakage gate                       |
+| MLOps & CI/CD                                     | Two-speed GitHub Actions, Trivy scan, nightly full-pipeline eval, self-healing nightly sync, Prometheus `/metrics`                                                       |
 
 ---
 
@@ -42,7 +42,7 @@ flowchart TD
         PARSE["ConfluenceSanitizationEngine\nXHTML → Markdown, tables preserved"]
         CHUNK["StructureAwareChunker\ntables atomic · headings carried"]
         IDX[("ChromaDB embedded\nMiniLM embeddings · role metadata")]
-        MW["Bearer-token middleware\ntoken → role (OIDC-style)"]
+        MW["Bearer-token middleware\ntoken → role (static or OIDC/JWKS)"]
         TOOLS["Retrieval tools\nlist · fetch · semantic_search"]
         SCHED["asyncio daily sync\n+ POST /admin/sync (lead only)"]
         OBS["/health · /metrics (Prometheus)"]
@@ -119,7 +119,7 @@ claude mcp add --transport http accelerator-ops \
   --header "Authorization: Bearer <token>"
 ```
 
-Tokens map to roles server-side; the client never states its own privilege level.
+Tokens map to roles server-side and the client never states its own privilege level: the bearer is either a pre-shared role token (`AUTH_TOKENS`) or an **OIDC access token** from the identity provider, verified via JWKS (issuer + audience + signature) with its `roles` claim mapped to a role (`SSO_ISSUER` + `SSO_AUDIENCE`; disabled when unset). Either way the role is resolved by the server.
 
 ---
 
@@ -140,7 +140,7 @@ Tokens map to roles server-side; the client never states its own privilege level
 ============================================================
 ```
 
-The adversarial set includes role-escalation attempts, a permanent prompt-injection fixture *inside the Confluence corpus* ("SYSTEM OVERRIDE: ignore all previous instructions…"), and over-privilege probes — the live LLM quotes the injection as data and refuses to obey it.
+The adversarial set includes role-escalation attempts, a permanent prompt-injection fixture _inside the Confluence corpus_ ("SYSTEM OVERRIDE: ignore all previous instructions…"), and over-privilege probes — the live LLM quotes the injection as data and refuses to obey it.
 
 ---
 
@@ -154,18 +154,18 @@ The adversarial set includes role-escalation attempts, a permanent prompt-inject
 
 ## Repository Map
 
-| Path | Purpose |
-|---|---|
-| [src/server.py](src/server.py) | FastMCP server, auth middleware, HTTP app, sync endpoints |
-| [src/sources.py](src/sources.py) | `DocumentSource` protocol: Confluence API + local file connectors |
-| [src/parser.py](src/parser.py) | Confluence storage-format XHTML → clean Markdown (macros, tables) |
-| [src/retrieval.py](src/retrieval.py) | Chunker + LlamaIndex/Chroma semantic index with ACL pushdown |
-| [src/vector_store.py](src/vector_store.py) | NumPy TF-IDF backend (CI fast path, air-gapped fallback) |
-| [src/agent_loop.py](src/agent_loop.py) | LangGraph agent: router/retrieve/integrate/verify/generate |
-| [src/llm.py](src/llm.py) | Gemini (tiered fallback) / Ollama / deterministic stub |
-| [src/auth.py](src/auth.py) | Token→role resolution, ContextVar identity |
-| [src/metrics.py](src/metrics.py) | Prometheus exposition |
-| [src/eval_suite.py](src/eval_suite.py) + [eval/golden_dataset.yaml](eval/golden_dataset.yaml) | 8-scenario gated evaluation harness |
-| [scripts/](scripts/) | Confluence seeding + HF Space provisioning (infra as code) |
-| [TAD.md](TAD.md) | Every design decision with rationale |
-| [SECURITY.md](SECURITY.md) | Identity model, 4 enforcement layers, threat model |
+| Path                                                                                          | Purpose                                                                                    |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| [src/server.py](src/server.py)                                                                | FastMCP server, auth middleware, HTTP app, sync endpoints                                  |
+| [src/sources.py](src/sources.py)                                                              | `DocumentSource` protocol: Confluence API + local file connectors                          |
+| [src/parser.py](src/parser.py)                                                                | Confluence storage-format XHTML → clean Markdown (macros, tables)                          |
+| [src/retrieval.py](src/retrieval.py)                                                          | Chunker + LlamaIndex/Chroma semantic index with ACL pushdown                               |
+| [src/vector_store.py](src/vector_store.py)                                                    | NumPy TF-IDF backend (CI fast path, air-gapped fallback)                                   |
+| [src/agent_loop.py](src/agent_loop.py)                                                        | LangGraph agent: router/retrieve/integrate/verify/generate                                 |
+| [src/llm.py](src/llm.py)                                                                      | Gemini (tiered fallback) / Ollama / deterministic stub                                     |
+| [src/auth.py](src/auth.py)                                                                    | Token→role resolution (static `AUTH_TOKENS` + OIDC/JWKS verification), ContextVar identity |
+| [src/metrics.py](src/metrics.py)                                                              | Prometheus exposition                                                                      |
+| [src/eval_suite.py](src/eval_suite.py) + [eval/golden_dataset.yaml](eval/golden_dataset.yaml) | 8-scenario gated evaluation harness                                                        |
+| [scripts/](scripts/)                                                                          | Confluence seeding + HF Space provisioning (infra as code)                                 |
+| [TAD.md](TAD.md)                                                                              | Every design decision with rationale                                                       |
+| [SECURITY.md](SECURITY.md)                                                                    | Identity model, 4 enforcement layers, threat model                                         |
