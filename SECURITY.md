@@ -11,7 +11,7 @@ Roles are derived **server-side only** — never accepted from client input:
 | Streamable HTTP (remote) | `Authorization: Bearer <token>` → server-side token→role registry (`AUTH_TOKENS` secret) |
 | stdio (local desktop client) | `STDIO_ROLE` from the launching environment (process-level identity) |
 
-The bearer-token registry deliberately mirrors an **OIDC identity-claim flow**: in a CERN deployment, the ASGI middleware consumes CERN SSO (Keycloak) access tokens instead, and the registry lookup becomes a group-claim mapping. Nothing downstream of `auth.current_role()` changes.
+The bearer-token registry deliberately mirrors an **OIDC identity-claim flow**: in a CERN deployment, the ASGI middleware consumes HY13 Passkey SSO ("mini-Keycloak") access tokens instead, and the registry lookup becomes a group-claim mapping. Nothing downstream of `auth.current_role()` changes.
 
 A token that maps to an unknown role is treated as invalid (**fail closed**) and logged as a security event.
 

@@ -131,7 +131,7 @@ All three MCP tools call `_validate_role(user_role)` before accessing `DOCUMENTS
 A misbehaving or adversarial MCP client could pass `top_k=10000` to attempt a full index dump. Clamping at the server boundary before passing to the index prevents this without requiring the vector store to know about MCP-level concerns.
 
 **`user_role` accepted from tool input (PoC only).**
-In this proof-of-concept the role is supplied by the MCP client. In a production deployment at CERN this must be derived server-side from an authenticated identity (e.g. CERN SSO / OIDC claims) and the `user_role` parameter removed from the tool signatures entirely. The two-layer RBAC enforcement (retrieval + generation) is deliberately decoupled so swapping the identity provider requires no changes to the retrieval substrate.
+In this proof-of-concept the role is supplied by the MCP client. In a production deployment at CERN this must be derived server-side from an authenticated identity (e.g. HY13 Passkey SSO / OIDC claims) and the `user_role` parameter removed from the tool signatures entirely. The two-layer RBAC enforcement (retrieval + generation) is deliberately decoupled so swapping the identity provider requires no changes to the retrieval substrate.
 
 **Global `DOCUMENTS` + `INDEX` module-level singletons.**
 FastMCP tool functions are stateless callables; shared state must live at module scope. A dependency-injection pattern would add abstraction without benefit at this scale.
@@ -324,7 +324,7 @@ Alongside the URL, the page `title` is threaded onto `DocumentChunk` (read from 
 
 **`user_role` is gone from every tool signature** — closing the documented weakness of the PoC. Identity is resolved server-side:
 
-- **HTTP:** `Authorization: Bearer <token>` → ASGI middleware → token→role registry (`AUTH_TOKENS` secret) → `ContextVar` scoped to the request. Mirrors an upstream OIDC claim flow: at CERN the same seam consumes CERN SSO (Keycloak) tokens and the registry lookup becomes a group-claim mapping.
+- **HTTP:** `Authorization: Bearer <token>` → ASGI middleware → token→role registry (`AUTH_TOKENS` secret) → `ContextVar` scoped to the request. Mirrors an upstream OIDC claim flow: at CERN the same seam consumes HY13 Passkey SSO ("mini-Keycloak") tokens and the registry lookup becomes a group-claim mapping.
 - **stdio:** the launching environment supplies `STDIO_ROLE` — local process identity, suited to a desktop client owned by one user.
 - A token mapping to an unknown role fails closed (treated as invalid, logged as a security event).
 
