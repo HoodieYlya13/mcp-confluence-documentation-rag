@@ -14,9 +14,10 @@ AUDIENCE = "spotlight-client"
 def test_map_sso_roles():
     assert map_sso_roles_to_role(["JUNIOR_OP"]) == "JUNIOR_OP"
     assert map_sso_roles_to_role(["ATS_CORE_LEAD"]) == "ATS_CORE_LEAD"
-    # ADMIN is treated as ATS_CORE_LEAD.
+    # ADMIN and ADMIN_DURNAL are treated as ATS_CORE_LEAD.
     assert map_sso_roles_to_role(["ADMIN"]) == "ATS_CORE_LEAD"
     assert map_sso_roles_to_role(["ATS_CORE_LEAD", "ADMIN"]) == "ATS_CORE_LEAD"
+    assert map_sso_roles_to_role(["ADMIN_DURNAL"]) == "ATS_CORE_LEAD"
     # No recognized role fails closed.
     assert map_sso_roles_to_role(["SOMETHING_ELSE"]) is None
     assert map_sso_roles_to_role([]) is None

@@ -38,10 +38,14 @@ def resolve_role_from_token(token: str, settings: Settings | None = None) -> str
 def map_sso_roles_to_role(roles: list[str]) -> str | None:
     """Maps an SSO access token's per-app roles onto an MCP clearance.
 
-    ADMIN is treated as ATS_CORE_LEAD. A token carrying no recognized role is
-    denied (returns None) — there is no implicit floor.
+    ADMIN and ADMIN_DURNAL are treated as ATS_CORE_LEAD. A token carrying no
+    recognized role is denied (returns None) — there is no implicit floor.
     """
-    if SecurityRoles.ATS_CORE_LEAD in roles or "ADMIN" in roles:
+    if (
+        SecurityRoles.ATS_CORE_LEAD in roles
+        or "ADMIN" in roles
+        or "ADMIN_DURNAL" in roles
+    ):
         return SecurityRoles.ATS_CORE_LEAD
     if SecurityRoles.JUNIOR_OP in roles:
         return SecurityRoles.JUNIOR_OP

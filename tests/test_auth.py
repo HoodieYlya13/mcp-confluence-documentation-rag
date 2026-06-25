@@ -8,8 +8,8 @@ from src.auth import (
 
 
 def test_known_token_resolves_to_role():
-    assert resolve_role_from_token("test-junior-token") == "JUNIOR_OP"
-    assert resolve_role_from_token("test-lead-token") == "ATS_CORE_LEAD"
+    assert resolve_role_from_token("DEMO_JUNIOR") == "JUNIOR_OP"
+    assert resolve_role_from_token("DEMO_LEAD") == "ATS_CORE_LEAD"
 
 
 def test_unknown_token_resolves_to_none():
@@ -76,7 +76,7 @@ def test_request_with_invalid_token_rejected(http_client):
 
 def test_request_with_valid_token_resolves_role(http_client):
     response = http_client.get(
-        "/whoami", headers={"Authorization": "Bearer test-lead-token"}
+        "/whoami", headers={"Authorization": "Bearer DEMO_LEAD"}
     )
     assert response.status_code == 200
     assert response.json()["role"] == "ATS_CORE_LEAD"
@@ -97,14 +97,14 @@ def test_admin_sync_requires_token(server_app_client):
 
 def test_admin_sync_rejects_junior(server_app_client):
     response = server_app_client.post(
-        "/admin/sync", headers={"Authorization": "Bearer test-junior-token"}
+        "/admin/sync", headers={"Authorization": "Bearer DEMO_JUNIOR"}
     )
     assert response.status_code == 403
 
 
 def test_admin_sync_allows_lead(server_app_client):
     response = server_app_client.post(
-        "/admin/sync", headers={"Authorization": "Bearer test-lead-token"}
+        "/admin/sync", headers={"Authorization": "Bearer DEMO_LEAD"}
     )
     assert response.status_code == 200
     payload = response.json()
@@ -119,14 +119,14 @@ def test_admin_db_dump_requires_token(server_app_client):
 
 def test_admin_db_dump_rejects_junior(server_app_client):
     response = server_app_client.get(
-        "/admin/db-dump", headers={"Authorization": "Bearer test-junior-token"}
+        "/admin/db-dump", headers={"Authorization": "Bearer DEMO_JUNIOR"}
     )
     assert response.status_code == 403
 
 
 def test_admin_db_dump_allows_lead(server_app_client):
     response = server_app_client.get(
-        "/admin/db-dump", headers={"Authorization": "Bearer test-lead-token"}
+        "/admin/db-dump", headers={"Authorization": "Bearer DEMO_LEAD"}
     )
     assert response.status_code == 200
     payload = response.json()
