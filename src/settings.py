@@ -51,6 +51,32 @@ class Settings(BaseSettings):
     sso_issuer: str = ""
     sso_audience: str = ""
     sso_jwks_url: str = ""
+    sso_insecure_issuer: str = ""
+
+    @property
+    def sso_issuers(self) -> list[str]:
+        return parse_list(self.sso_issuer)
+
+    @property
+    def sso_audiences(self) -> list[str]:
+        return parse_list(self.sso_audience)
+
+    @property
+    def sso_jwks_urls(self) -> list[str]:
+        return parse_list(self.sso_jwks_url)
+
+    @property
+    def sso_insecure_issuers(self) -> list[str]:
+        return parse_list(self.sso_insecure_issuer)
+
+
+def parse_list(val: str) -> list[str]:
+    val = str(val).strip()
+    if not val:
+        return []
+    if val.startswith('[') and val.endswith(']'):
+        val = val[1:-1]
+    return [p.strip().strip('"\'') for p in val.split(',') if p.strip()]
 
 
 @lru_cache(maxsize=1)

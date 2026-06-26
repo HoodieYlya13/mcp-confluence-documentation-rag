@@ -119,7 +119,7 @@ claude mcp add --transport http accelerator-ops \
   --header "Authorization: Bearer <token>"
 ```
 
-Tokens map to roles server-side and the client never states its own privilege level: the bearer is either a pre-shared role token (`AUTH_TOKENS`) or an **OIDC access token** from the identity provider, verified via JWKS (issuer + audience + signature) with its `roles` claim mapped to a role (`SSO_ISSUER` + `SSO_AUDIENCE`; disabled when unset). Either way the role is resolved by the server.
+Tokens map to roles server-side and the client never states its own privilege level: the bearer is either a pre-shared role token (`AUTH_TOKENS`) or an **OIDC access token** from the identity provider, verified via JWKS (issuer + audience/`azp` + RS256 signature) with its `roles` claim mapped to a role (`SSO_ISSUER` + `SSO_AUDIENCE`; disabled when unset). Both settings accept a bracketed list, so several identity providers can be trusted at once. Either way the role is resolved by the server. (`SSO_INSECURE_ISSUER` is a **demo-only**, secure-by-default knob to skip signature verification for an issuer the hosted demo can't reach through a corporate VPN — see [SECURITY.md](SECURITY.md); it stays empty in production.)
 
 ---
 

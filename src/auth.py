@@ -1,4 +1,5 @@
 import logging
+import time
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Iterator
@@ -13,7 +14,6 @@ logger = logging.getLogger("auth")
 
 _current_role: ContextVar[str | None] = ContextVar("current_role", default=None)
 
-# Cache one JWKS client per endpoint; it refreshes signing keys internally.
 _jwks_clients: dict[str, PyJWKClient] = {}
 
 
@@ -69,25 +69,91 @@ def resolve_role_from_sso_token(token: str, settings: Settings | None = None) ->
     failure fails closed.
     """
     settings = settings or get_settings()
-    if not settings.sso_issuer or not settings.sso_audience:
+    issuers = settings.sso_issuers
+    audiences = settings.sso_audiences
+    if not issuers or not audiences:
         return None
 
-    jwks_url = (
-        settings.sso_jwks_url
-        or settings.sso_issuer.rstrip("/") + "/.well-known/jwks.json"
-    )
     try:
-        signing_key = _get_jwks_client(jwks_url).get_signing_key_from_jwt(token)
-        claims = jwt.decode(
-            token,
-            signing_key.key,
-            algorithms=["RS256"],
-            audience=settings.sso_audience,
-            issuer=settings.sso_issuer,
-            options={"require": ["exp", "iat"]},
+        unverified = jwt.decode(token, options={"verify_signature": False})
+        token_issuer = unverified.get("iss")
+    except Exception as exc:
+        logger.warning("Failed to decode unverified SSO token.", extra={"error": str(exc)})
+        return None
+
+    if not token_issuer or token_issuer not in issuers:
+        logger.warning("SSO token issuer not in allowed issuers.", extra={"issuer": token_issuer})
+        return None
+
+    if token_issuer in settings.sso_insecure_issuers:
+        logger.warning(
+            "SSO signature verification BYPASSED for a configured insecure issuer "
+            "(demo only; see SECURITY.md).",
+            extra={"issuer": token_issuer, "signature_bypassed": True},
         )
-    except Exception as exc:  # noqa: BLE001 — fail closed on any verification error
-        logger.warning("SSO token verification failed.", extra={"error": str(exc)})
+        claims = unverified
+        if "exp" not in claims or "iat" not in claims:
+            return None
+        if claims.get("exp", 0) < int(time.time()):
+            logger.warning(
+                "Insecure-issuer SSO token is expired.", extra={"issuer": token_issuer}
+            )
+            return None
+    else:
+        jwks_urls = settings.sso_jwks_urls
+        try:
+            issuer_index = issuers.index(token_issuer)
+        except ValueError:
+            issuer_index = -1
+
+        if 0 <= issuer_index < len(jwks_urls):
+            jwks_url = jwks_urls[issuer_index]
+        else:
+            jwks_url = token_issuer.rstrip("/") + "/.well-known/jwks.json"
+
+        try:
+            signing_key = _get_jwks_client(jwks_url).get_signing_key_from_jwt(token)
+            claims = jwt.decode(
+                token,
+                signing_key.key,
+                algorithms=["RS256"],
+                options={
+                    "require": ["exp", "iat"],
+                    "verify_iss": False,
+                    "verify_aud": False,
+                },
+            )
+        except Exception as exc:
+            logger.warning(
+                "SSO token cryptographic verification failed.", extra={"error": str(exc)}
+            )
+            return None
+
+        claims_issuer = claims.get("iss")
+        if claims_issuer not in issuers:
+            logger.warning(
+                "SSO token issuer mismatch after verification.",
+                extra={"issuer": claims_issuer},
+            )
+            return None
+
+    token_aud = claims.get("aud")
+    token_azp = claims.get("azp")
+
+    token_audiences = []
+    if isinstance(token_aud, str):
+        token_audiences = [token_aud]
+    elif isinstance(token_aud, list):
+        token_audiences = [a for a in token_aud if isinstance(a, str)]
+
+    audience_match = any(aud in audiences for aud in token_audiences)
+    azp_match = token_azp in audiences if token_azp else False
+
+    if not (audience_match or azp_match):
+        logger.warning(
+            "SSO token audience/azp verification failed.",
+            extra={"token_aud": token_aud, "token_azp": token_azp, "allowed_audiences": audiences}
+        )
         return None
 
     raw_roles = claims.get("roles", [])
