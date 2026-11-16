@@ -78,6 +78,17 @@ def load_env_file(path: str) -> None:
             os.environ.setdefault(key.strip(), value.strip())
 
 
+def ensure_space_exists(api: HfApi, repo_id: str) -> None:
+    if api.repo_exists(repo_id=repo_id, repo_type="space"):
+        return
+    api.create_repo(
+        repo_id=repo_id,
+        repo_type="space",
+        space_sdk="docker",
+        private=False,
+    )
+
+
 def main() -> int:
     load_env_file(os.path.join(BASE_DIR, ".env"))
 
@@ -95,13 +106,7 @@ def main() -> int:
     username = api.whoami()["name"]
     repo_id = f"{username}/{SPACE_NAME}"
 
-    api.create_repo(
-        repo_id=repo_id,
-        repo_type="space",
-        space_sdk="docker",
-        private=False,
-        exist_ok=True,
-    )
+    ensure_space_exists(api, repo_id)
     logger.info(f"Space ready: https://huggingface.co/spaces/{repo_id}")
 
     for key in SECRET_KEYS:
