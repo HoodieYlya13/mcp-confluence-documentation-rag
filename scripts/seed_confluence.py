@@ -573,7 +573,7 @@ class ConfluenceSeeder:
         self.client.close()
 
 
-def main() -> int:
+def seeder_from_environment() -> ConfluenceSeeder | None:
     load_env_file(os.path.join(BASE_DIR, ".env"))
 
     url = os.environ.get("CONFLUENCE_URL", "")
@@ -581,9 +581,15 @@ def main() -> int:
     token = os.environ.get("CONFLUENCE_API_TOKEN", "")
     if not url or not email or not token:
         logger.error("CONFLUENCE_URL, CONFLUENCE_EMAIL and CONFLUENCE_API_TOKEN must be set.")
+        return None
+    return ConfluenceSeeder(url, email, token)
+
+
+def main() -> int:
+    seeder = seeder_from_environment()
+    if seeder is None:
         return 1
 
-    seeder = ConfluenceSeeder(url, email, token)
     try:
         seeder.ensure_space()
 

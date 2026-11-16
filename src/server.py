@@ -1,5 +1,6 @@
 import logging
 import time
+from dataclasses import dataclass
 from typing import Any, Dict, List
 
 from mcp.server.fastmcp import FastMCP
@@ -43,31 +44,62 @@ def _build_source() -> DocumentSource:
 
 
 SOURCE: DocumentSource = _build_source()
+BUNDLED_FALLBACK_SOURCE: DocumentSource = LocalFileSource(MOCK_CONFLUENCE_DIR)
+
+
+@dataclass
+class SubstrateStatus:
+    is_serving_bundled_fallback: bool = False
+
+
+STATUS = SubstrateStatus()
+
+
+def _fetch_primary_documents() -> List[ParsedDocument]:
+    try:
+        return SOURCE.fetch_documents()
+    except Exception:
+        logger.error("Document source unavailable.", exc_info=True)
+        return []
+
+
+def _replace_documents(parsed_docs: List[ParsedDocument]) -> None:
+    DOCUMENTS.clear()
+    DOCUMENTS.update({doc.doc_id: doc for doc in parsed_docs})
+    INDEX.add_documents(parsed_docs)
+
+
+def _load_bundled_fallback() -> None:
+    try:
+        fallback_docs = BUNDLED_FALLBACK_SOURCE.fetch_documents()
+    except Exception:
+        logger.error("Bundled fallback corpus unavailable. Index is empty.", exc_info=True)
+        return
+
+    _replace_documents(fallback_docs)
+    STATUS.is_serving_bundled_fallback = True
+    logger.warning(
+        "Document source unavailable and no last-known-good index. Serving bundled fallback corpus.",
+        extra={"indexed_documents": len(DOCUMENTS), "total_chunks": len(INDEX.chunks)}
+    )
 
 
 def initialize_substrate(trigger: str = "startup") -> None:
     logger.info("Initializing operational database substrate...")
 
-    try:
-        parsed_docs: List[ParsedDocument] = SOURCE.fetch_documents()
-    except Exception:
-        logger.error(
-            "Document source unavailable. Serving last-known-good index.",
-            exc_info=True,
-            extra={"documents_retained": len(DOCUMENTS)}
-        )
-        return
-
-    if not parsed_docs:
+    parsed_docs = _fetch_primary_documents()
+    if not parsed_docs and DOCUMENTS:
         logger.warning(
             "Document source returned no documents. Serving last-known-good index.",
             extra={"documents_retained": len(DOCUMENTS)}
         )
         return
+    if not parsed_docs:
+        _load_bundled_fallback()
+        return
 
-    DOCUMENTS.clear()
-    DOCUMENTS.update({doc.doc_id: doc for doc in parsed_docs})
-    INDEX.add_documents(parsed_docs)
+    _replace_documents(parsed_docs)
+    STATUS.is_serving_bundled_fallback = False
     metrics.mark_sync_success(trigger=trigger)
     logger.info(
         "Substrate successfully initialized.",
@@ -75,9 +107,18 @@ def initialize_substrate(trigger: str = "startup") -> None:
     )
 
 
+def substrate_health_status() -> str:
+    if not DOCUMENTS or STATUS.is_serving_bundled_fallback:
+        return "degraded"
+    return "ok"
+
+
 initialize_substrate()
 metrics.set_gauge_provider("indexed_documents", lambda: float(len(DOCUMENTS)))
 metrics.set_gauge_provider("indexed_chunks", lambda: float(len(INDEX.chunks)))
+metrics.set_gauge_provider(
+    "serving_bundled_fallback", lambda: float(STATUS.is_serving_bundled_fallback)
+)
 
 
 def _authenticated_role() -> str:
@@ -334,7 +375,8 @@ def build_http_app():
 
     async def health(request):
         return JSONResponse({
-            "status": "ok",
+            "status": substrate_health_status(),
+            "serving_bundled_fallback": STATUS.is_serving_bundled_fallback,
             "indexed_documents": len(DOCUMENTS),
             "total_chunks": len(INDEX.chunks),
             "retriever_backend": type(INDEX).__name__,

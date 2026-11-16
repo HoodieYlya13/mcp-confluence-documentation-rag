@@ -3,6 +3,7 @@ name: Nightly Confluence Sync
 on:
   schedule:
     - cron: "17 2 * * *"
+    - cron: "47 3 * * 1"
   workflow_dispatch:
 
 env:
@@ -10,6 +11,46 @@ env:
   SPACE_REPO: HoodieYlya13/mcp-confluence-documentation-rag
 
 jobs:
+  keepalive:
+    name: Keep scheduled workflows enabled
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+
+    steps:
+      - name: Re-enable scheduled workflows before GitHub's 60-day inactivity cutoff
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for workflow in nightly-sync.yml nightly-eval.yml; do
+            gh api -X PUT "repos/${{ github.repository }}/actions/workflows/$workflow/enable"
+            echo "Enabled $workflow"
+          done
+
+  confluence-heartbeat:
+    name: Weekly Confluence heartbeat edit
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '47 3 * * 1'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install HTTP client
+        run: pip install httpx==0.28.1
+
+      - name: Edit the unlabelled heartbeat page
+        env:
+          CONFLUENCE_URL: ${{ secrets.CONFLUENCE_URL }}
+          CONFLUENCE_EMAIL: ${{ secrets.CONFLUENCE_EMAIL }}
+          CONFLUENCE_API_TOKEN: ${{ secrets.CONFLUENCE_API_TOKEN }}
+        run: python scripts/confluence_heartbeat.py
+
   sync:
     name: Trigger incremental sync on the live MCP server
     runs-on: ubuntu-latest

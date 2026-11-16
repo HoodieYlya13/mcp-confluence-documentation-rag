@@ -16,6 +16,7 @@ _HELP_TEXT = {
     "sync_last_success_timestamp": "Unix timestamp of the last successful sync.",
     "indexed_documents": "Documents currently indexed.",
     "indexed_chunks": "Chunks currently indexed.",
+    "serving_bundled_fallback": "1 when the bundled fallback corpus is served instead of the live source.",
 }
 
 
