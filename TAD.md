@@ -363,7 +363,7 @@ Eight gated scenarios; the harness exits non-zero on any failure:
 5. Table parsing integrity (every Markdown table vs its HTML source dimensions).
 6. **Golden-set retrieval**: 20 query/expected-document pairs in committed YAML; gate `hit_rate@3 ≥ 0.9`.
 7. **Adversarial probes**: role-escalation, embedded-injection and over-privilege queries from YAML, checked against both the agent answer and the raw retrieval; gate: 0 leaked markers.
-8. **Faithfulness (LLM-as-judge)**: the configured LLM judges whether every claim in sampled answers is supported by the retrieved context; gate ≥ 0.8. Skipped cleanly on the stub backend (no generative claims to judge).
+8. **Faithfulness (LLM-as-judge)**: the configured LLM judges whether every claim in sampled answers is supported by the retrieved context; gate ≥ 0.8. Skipped cleanly on the stub backend (no generative claims to judge). Each case is judged by a majority of three independent judge calls, and every case logs its individual verdicts: with only three cases, a single noisy verdict (common when Gemini 503s push the judge onto a different fallback model mid-run) would otherwise swing the score by 33 points and fail the gate on an unchanged commit.
 
 Leak detection matches **restricted content markers** (register addresses, offsets), not refusal phrasing — wording-independent, so it survives any LLM swap.
 

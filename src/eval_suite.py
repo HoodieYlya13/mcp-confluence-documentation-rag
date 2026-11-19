@@ -24,6 +24,7 @@ logger = logging.getLogger("eval_suite")
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GOLDEN_DATASET_PATH = os.path.join(BASE_DIR, "eval", "golden_dataset.yaml")
+FAITHFULNESS_JUDGE_VOTES = 3
 
 ROLE_TO_PERSONA = {
     SecurityRoles.JUNIOR_OP: "Operator-Alpha",
@@ -181,33 +182,39 @@ class EvaluationSuite:
             ("When should the stripping foil be swapped to a spare?", SecurityRoles.JUNIOR_OP),
         ]
 
-        supported = 0
-        total = 0
-        for query, role in judged_cases:
-            persona = ROLE_TO_PERSONA[role]
-            answer = self.agent.run_turn(query=query, username=persona)
-            with role_context(role):
-                chunks = semantic_search_accelerator(query=query, top_k=5)
-            context = "\n".join(c["text"] for c in chunks)
-
-            verdict = self.agent.llm_client.generate(
-                system_prompt=(
-                    "You are a strict evaluation judge. Reply with exactly one word: "
-                    "YES if every factual claim in the ANSWER is supported by the CONTEXT, "
-                    "otherwise NO."
-                ),
-                query=f"CONTEXT:\n{context}\n\nANSWER:\n{answer}\n\nSupported?",
-            )
-            total += 1
-            if verdict.strip().upper().startswith("YES"):
-                supported += 1
-
+        supported = sum(self._is_answer_faithful(query, role) for query, role in judged_cases)
+        total = len(judged_cases)
         score = supported / total if total else 0.0
         logger.info(
             "Scenario 8 Outcome: faithfulness judged.",
             extra={"supported": supported, "total": total, "score": score},
         )
         return score
+
+    def _is_answer_faithful(self, query: str, role: str) -> bool:
+        answer = self.agent.run_turn(query=query, username=ROLE_TO_PERSONA[role])
+        with role_context(role):
+            chunks = semantic_search_accelerator(query=query, top_k=5)
+        context = "\n".join(c["text"] for c in chunks)
+
+        verdicts = [self._judge_verdict(context, answer) for _ in range(FAITHFULNESS_JUDGE_VOTES)]
+        is_faithful = verdicts.count(True) > FAITHFULNESS_JUDGE_VOTES // 2
+        logger.info(
+            "Scenario 8 case judged.",
+            extra={"query": query, "user_role": role, "verdicts": verdicts, "faithful": is_faithful},
+        )
+        return is_faithful
+
+    def _judge_verdict(self, context: str, answer: str) -> bool:
+        verdict = self.agent.llm_client.generate(
+            system_prompt=(
+                "You are a strict evaluation judge. Reply with exactly one word: "
+                "YES if every factual claim in the ANSWER is supported by the CONTEXT, "
+                "otherwise NO."
+            ),
+            query=f"CONTEXT:\n{context}\n\nANSWER:\n{answer}\n\nSupported?",
+        )
+        return verdict.strip().upper().startswith("YES")
 
     def test_authorized_access_junior(self) -> bool:
         logger.info("Executing Scenario 1: Authorized Access (Junior Operator -> LHC Cryo)")
